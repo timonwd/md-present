@@ -31,6 +31,9 @@ GoReleaser leaves the manually authored release notes unchanged. After the
 artifacts and Homebrew cask are published, it calls the separate `Bump version`
 workflow. That workflow advances the CLI, Codex and Claude plugin manifests,
 and Claude marketplace to the next patch version in one commit on `main`.
+The generated Homebrew and version-preparation commits include `[skip ci]`
+because the release commit has already passed CI and these updates are produced
+by the release automation.
 
 The `Bump version` workflow can also be run manually. Leave its input blank to
 increment the current patch version, or enter an exact semantic version to use
