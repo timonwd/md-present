@@ -1,0 +1,27 @@
+{
+  "name": "md-present",
+  "version": "0.1.0",
+  "description": "Create and validate browser slide decks for md-present.",
+  "author": {
+    "name": "Timon Weide",
+    "url": "https://github.com/timonwd"
+  },
+  "homepage": "https://github.com/timonwd/md-present",
+  "repository": "https://github.com/timonwd/md-present",
+  "keywords": ["markdown", "slides", "presentations", "cli"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "md-present",
+    "shortDescription": "Create and validate md-present slide decks.",
+    "longDescription": "Guide agents to author focused decks, handle slide boundaries and images, run the local server, and validate presentations.",
+    "developerName": "Timon Weide",
+    "category": "Productivity",
+    "capabilities": ["Write"],
+    "defaultPrompt": [
+      "Create a concise md-present deck from my source material.",
+      "Review this md-present deck for slide boundaries and overflow.",
+      "Run and validate this md-present presentation."
+    ],
+    "brandColor": "#3157D5"
+  }
+}

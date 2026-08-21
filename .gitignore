@@ -1,0 +1,7 @@
+/md-present
+/dist/
+/node_modules/
+/.pnpm-store/
+/pnpm-debug.log*
+/cmd/md-present/web/mermaid.min.js
+/cmd/md-present/web/mermaid.LICENSE.txt

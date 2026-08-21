@@ -1,0 +1,83 @@
+version: 2
+
+project_name: md-present
+
+builds:
+  - id: md-present
+    main: ./cmd/md-present
+    binary: md-present
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: md-present
+    ids:
+      - md-present
+    files:
+      - LICENSE
+      - README.md
+      - THIRD_PARTY_NOTICES
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64{{ else }}{{ .Arch }}{{ end }}
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  use: git
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+release:
+  prerelease: auto
+  mode: keep-existing
+  replace_existing_artifacts: true
+
+homebrew_casks:
+  - name: md-present
+    ids:
+      - md-present
+    binaries:
+      - md-present
+    repository:
+      owner: timonwd
+      name: md-present
+      branch: main
+      token: "{{ .Env.GITHUB_TOKEN }}"
+    directory: Casks
+    commit_msg_template: "Update md-present to {{ .Tag }}"
+    commit_author:
+      name: md-present release bot
+      email: actions@github.com
+    homepage: https://github.com/timonwd/md-present
+    description: Turn one Markdown file into a local browser presentation
+    skip_upload: auto
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/md-present"]
+          end
