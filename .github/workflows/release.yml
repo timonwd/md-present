@@ -32,7 +32,7 @@ jobs:
           RELEASE_SHA: ${{ steps.release-commit.outputs.sha }}
         with:
           script: |
-            const { data } = await github.rest.actions.listWorkflowRunsForWorkflow({
+            const { data } = await github.request("GET /repos/{owner}/{repo}/actions/workflows/{workflow_id}/runs", {
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: "ci.yml",
