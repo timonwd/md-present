@@ -5,3 +5,4 @@
 /pnpm-debug.log*
 /cmd/md-present/web/mermaid.min.js
 /cmd/md-present/web/mermaid.LICENSE.txt
+.DS_Store
