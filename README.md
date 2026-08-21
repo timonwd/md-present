@@ -42,7 +42,7 @@ The server listens only on a random `127.0.0.1` port. Without `--no-open`, the d
 | First slide | Home |
 | Last slide | End |
 
-The active slide is stored in the URL hash. Printing uses one slide per landscape page.
+Use the button in the upper-right corner to enter or exit fullscreen. The active slide is stored in the URL hash. Printing uses one slide per landscape page.
 
 ## MVP limitations
 

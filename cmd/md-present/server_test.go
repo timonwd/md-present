@@ -26,6 +26,9 @@ func TestPresentationHandler(t *testing.T) {
 	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "Expected slide") {
 		t.Fatalf("GET / status %d, body:\n%s", response.Code, response.Body.String())
 	}
+	if !strings.Contains(response.Body.String(), `class="fullscreen-button"`) {
+		t.Fatal("GET / omitted fullscreen control")
+	}
 	if response.Header().Get("Content-Security-Policy") == "" {
 		t.Fatal("GET / omitted Content-Security-Policy")
 	}
@@ -35,6 +38,9 @@ func TestPresentationHandler(t *testing.T) {
 	handler.ServeHTTP(assetResponse, assetRequest)
 	if assetResponse.Code != http.StatusOK {
 		t.Fatalf("GET /assets/app.js status = %d", assetResponse.Code)
+	}
+	if body := assetResponse.Body.String(); !strings.Contains(body, "requestFullscreen") || !strings.Contains(body, "exitFullscreen") {
+		t.Fatal("GET /assets/app.js omitted fullscreen behavior")
 	}
 
 	missingRequest := httptest.NewRequest(http.MethodGet, "/source.md", nil)

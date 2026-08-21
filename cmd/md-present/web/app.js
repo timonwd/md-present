@@ -3,6 +3,7 @@
 
   const slides = Array.from(document.querySelectorAll(".slide"));
   const currentLabel = document.querySelector("#current");
+  const fullscreenButton = document.querySelector(".fullscreen-button");
   let current = 0;
 
   function hashIndex() {
@@ -62,6 +63,32 @@
 
   window.addEventListener("hashchange", () => show(hashIndex()));
   show(hashIndex());
+
+  function updateFullscreenButton() {
+    const active = Boolean(document.fullscreenElement);
+    const label = active ? "Exit fullscreen" : "Enter fullscreen";
+    fullscreenButton.classList.toggle("is-active", active);
+    fullscreenButton.setAttribute("aria-label", label);
+    fullscreenButton.setAttribute("title", label);
+  }
+
+  if (document.fullscreenEnabled) {
+    fullscreenButton.addEventListener("click", async () => {
+      try {
+        if (document.fullscreenElement) {
+          await document.exitFullscreen();
+        } else {
+          await document.documentElement.requestFullscreen();
+        }
+      } catch {
+        // The browser may reject fullscreen when the user gesture is no longer valid.
+      }
+    });
+    document.addEventListener("fullscreenchange", updateFullscreenButton);
+    updateFullscreenButton();
+  } else {
+    fullscreenButton.hidden = true;
+  }
 
   const session = new EventSource(`/api/session?revision=${encodeURIComponent(document.body.dataset.revision)}`);
   session.addEventListener("reload", () => window.location.reload());
