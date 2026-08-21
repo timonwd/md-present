@@ -6,8 +6,9 @@ preserves its notes, and updates `Casks/md-present.rb` in this repository.
 
 The repository doubles as its own explicitly named Homebrew tap, avoiding a
 second repository and cross-repository access token. The release workflow needs
-`contents: write` so its normal `GITHUB_TOKEN` can upload release assets and
-commit the generated cask to `main`.
+`actions: read` to verify CI for the tagged commit and `contents: write` so its
+normal `GITHUB_TOKEN` can upload release assets and commit the generated cask to
+`main`.
 
 ## Publish a release
 
@@ -20,8 +21,10 @@ commit the generated cask to `main`.
    release title and notes, and publish it.
 
 Publishing the release starts `.github/workflows/release.yml`. The workflow
-verifies that its tag matches the CLI and plugin versions before adding
-artifacts. GoReleaser leaves the manually authored release notes unchanged.
+requires a successful `push` run of `.github/workflows/ci.yml` for the exact
+tagged commit, then verifies that the tag matches the CLI and plugin versions
+before adding artifacts. It does not rerun CI checks during publishing.
+GoReleaser leaves the manually authored release notes unchanged.
 
 Pull requests and pushes to `main` run a non-publishing GoReleaser snapshot, so
 packaging failures are caught before a release is published.

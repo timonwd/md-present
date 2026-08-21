@@ -6,6 +6,7 @@ on:
       - published
 
 permissions:
+  actions: read
   contents: write
 
 concurrency:
@@ -20,6 +21,37 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
+
+      - name: Resolve release commit
+        id: release-commit
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Verify successful CI
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          RELEASE_SHA: ${{ steps.release-commit.outputs.sha }}
+        with:
+          script: |
+            const { data } = await github.rest.actions.listWorkflowRunsForWorkflow({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: "ci.yml",
+              head_sha: process.env.RELEASE_SHA,
+              status: "completed",
+              per_page: 100,
+            });
+
+            const pushRuns = data.workflow_runs.filter((run) => run.event === "push");
+            const successfulRun = pushRuns.find((run) => run.conclusion === "success");
+            if (!successfulRun) {
+              const conclusions = pushRuns.length === 0
+                ? "no completed push runs found"
+                : pushRuns.map((run) => `${run.html_url}: ${run.conclusion}`).join(", ");
+              core.setFailed(`CI has not completed successfully for release commit ${process.env.RELEASE_SHA} (${conclusions}).`);
+              return;
+            }
+
+            core.info(`Verified successful CI run: ${successfulRun.html_url}`);
 
       - name: Set up pnpm
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
@@ -41,12 +73,6 @@ jobs:
         with:
           go-version-file: go.mod
           cache-dependency-path: go.sum
-
-      - name: Vet
-        run: go vet ./...
-
-      - name: Test
-        run: go test ./...
 
       - name: Verify release version
         env:
