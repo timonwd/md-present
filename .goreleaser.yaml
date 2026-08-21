@@ -59,7 +59,7 @@ homebrew_casks:
       branch: main
       token: "{{ .Env.GITHUB_TOKEN }}"
     directory: Casks
-    commit_msg_template: "Update md-present to {{ .Tag }}"
+    commit_msg_template: "Update md-present to {{ .Tag }} [skip ci]"
     commit_author:
       name: md-present release bot
       email: actions@github.com
