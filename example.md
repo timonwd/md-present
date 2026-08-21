@@ -96,7 +96,7 @@ Mermaid runs from the embedded application bundle, without a CDN or runtime netw
 
 ## Local images travel with the deck
 
-![Markdown flows through md-present into a local browser presentation](assets/rendering-flow.svg "The local rendering pipeline")
+![Markdown flows through md-present into a local browser presentation](assets/rendering-flow.png "The local rendering pipeline")
 
 Relative images are resolved beside the Markdown file and embedded into the generated page.
 
