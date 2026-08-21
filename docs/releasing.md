@@ -6,10 +6,14 @@ preserves its notes, and updates `Casks/md-present.rb` in this repository. Other
 operating systems and Intel Macs are not supported release targets.
 
 The repository doubles as its own explicitly named Homebrew tap, avoiding a
-second repository and cross-repository access token. The release workflow needs
-`actions: read` to verify CI for the tagged commit and `contents: write` so its
-normal `GITHUB_TOKEN` can upload release assets and commit generated changes to
-`main`.
+second repository. The release workflow uses its normal `GITHUB_TOKEN` with
+`actions: read` to verify CI for the tagged commit. It creates a short-lived
+installation token for the repository-scoped release GitHub App to upload
+release assets and commit generated changes to `main`. The app needs
+`contents: write`, must be installed on this repository, and must be an
+always-allowed bypass actor for the default-branch pull-request ruleset. Its App
+ID and private key are stored in the `RELEASE_APP_ID` and
+`RELEASE_APP_PRIVATE_KEY` repository secrets.
 
 ## Publish a release
 
