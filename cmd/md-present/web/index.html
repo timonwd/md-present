@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>md-present</title>
+    <link rel="stylesheet" href="/assets/style.css">
+  </head>
+  <body>
+    <main class="deck" aria-live="polite">
+      {{range $index, $slide := .Slides}}
+      <section class="slide" id="slide-{{inc $index}}" aria-label="Slide {{inc $index}} of {{len $.Slides}}">
+        <div class="slide__content">{{$slide}}</div>
+      </section>
+      {{end}}
+    </main>
+    <div class="progress" aria-hidden="true"><span id="current">1</span><span class="progress__rule"></span><span>{{len .Slides}}</span></div>
+    <script src="/assets/app.js"></script>
+  </body>
+</html>
