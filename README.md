@@ -19,20 +19,6 @@ Upgrade it later with:
 brew upgrade --cask md-present
 ```
 
-### From source
-
-Go 1.22 or newer is required.
-
-```sh
-go install github.com/timonwd/md-present/cmd/md-present@latest
-```
-
-From a local checkout:
-
-```sh
-go build -o md-present ./cmd/md-present
-```
-
 ## Usage
 
 ```sh

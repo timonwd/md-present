@@ -2,6 +2,22 @@
 
 Run all commands from the repository root.
 
+## Build from source
+
+Go 1.22 or newer is required.
+
+Install the latest source release directly:
+
+```sh
+go install github.com/timonwd/md-present/cmd/md-present@latest
+```
+
+Build the current checkout for local development:
+
+```sh
+go build -o md-present ./cmd/md-present
+```
+
 ## Standard validation
 
 ```sh
