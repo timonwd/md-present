@@ -92,3 +92,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_CURRENT_TAG: ${{ github.event.release.tag_name }}
+
+  bump-version:
+    needs: release
+    permissions:
+      contents: write
+    uses: ./.github/workflows/bump-version.yml
