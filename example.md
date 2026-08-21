@@ -1,6 +1,6 @@
 # md-present
 
-Markdown in. Presentation out.
+Markdown in. Slides out.
 
 `md-present ./example.md`
 
