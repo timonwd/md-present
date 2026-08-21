@@ -197,6 +197,7 @@ func servePresentation(markdownPath string, slides []template.HTML, noOpen bool,
 	presentation := newPresentationState(slides)
 	server := &http.Server{
 		Handler:           presentationHandler(presentation, tracker),
+		BaseContext:       func(net.Listener) context.Context { return ctx },
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       30 * time.Second,
 	}

@@ -5,7 +5,7 @@ description: Create, revise, validate, and run browser slide decks for the md-pr
 
 # md-present
 
-Use standard Markdown. Focus on md-present's presentation rules rather than teaching Markdown syntax.
+Use standard Markdown and GitHub-Flavored Markdown tables, strikethrough, task lists, and automatic links. Add a language to fenced code blocks when syntax highlighting is useful. Focus on md-present's presentation rules rather than teaching Markdown syntax.
 
 ## Prepare a deck
 
@@ -25,10 +25,9 @@ Do not introduce or promise features outside the current tool:
 - no custom themes beyond automatic light and dark mode
 - no presenter notes or transitions
 - no Mermaid or math rendering
-- no syntax-highlighting library
 - no external UI assets or frontend build pipeline
 
-Fenced code retains its language class but uses presentation styling without syntax coloring.
+Fenced code with a recognized language is highlighted locally. Unknown or omitted languages retain escaped plain-code presentation styling.
 
 ## Run the presentation
 

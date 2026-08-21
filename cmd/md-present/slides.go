@@ -14,8 +14,21 @@ import (
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/text"
 )
+
+func newMarkdownRenderer() goldmark.Markdown {
+	return goldmark.New(
+		goldmark.WithExtensions(
+			extension.Linkify,
+			extension.NewTable(extension.WithTableCellAlignMethod(extension.TableCellAlignAttribute)),
+			extension.Strikethrough,
+			extension.TaskList,
+			syntaxHighlighting,
+		),
+	)
+}
 
 func splitSlides(source string) []string {
 	normalized := strings.ReplaceAll(source, "\r\n", "\n")
@@ -52,7 +65,7 @@ type sourceRange struct {
 }
 
 func fencedCodeRanges(source []byte) []sourceRange {
-	markdown := goldmark.New()
+	markdown := newMarkdownRenderer()
 	document := markdown.Parser().Parse(text.NewReader(source))
 	var ranges []sourceRange
 	_ = ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
@@ -84,7 +97,7 @@ func renderSlides(source []byte, deckDirectory string) ([]template.HTML, error) 
 		return nil, fmt.Errorf("the Markdown file contains no slide content")
 	}
 
-	renderer := goldmark.New()
+	renderer := newMarkdownRenderer()
 	rendered := make([]template.HTML, 0, len(markdownSlides))
 	for _, slide := range markdownSlides {
 		slideSource := []byte(slide)

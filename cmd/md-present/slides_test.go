@@ -82,7 +82,7 @@ fmt.Println("hello")
 		t.Fatalf("renderSlides() returned %d slides", len(slides))
 	}
 	html := string(slides[0])
-	for _, expected := range []string{"<h1>Title</h1>", "<blockquote>", "<ul>", "<pre><code class=\"language-go\">", "<img"} {
+	for _, expected := range []string{"<h1>Title</h1>", "<blockquote>", "<ul>", "<pre class=\"chroma\"><code class=\"language-go\">", "<img"} {
 		if !strings.Contains(html, expected) {
 			t.Errorf("rendered HTML does not contain %q:\n%s", expected, html)
 		}
@@ -91,6 +91,40 @@ fmt.Println("hello")
 		if strings.Contains(strings.ToLower(html), unsafe) {
 			t.Errorf("rendered HTML contains unsafe value %q:\n%s", unsafe, html)
 		}
+	}
+}
+
+func TestRenderSlidesGFM(t *testing.T) {
+	source := []byte(`| Feature | Ready |
+| --- | ---: |
+| Tables | yes |
+
+~~Completed~~ and https://example.com/docs
+
+- [x] Render GFM
+- [ ] Add Mermaid
+`)
+
+	slides, err := renderSlides(source, "")
+	if err != nil {
+		t.Fatalf("renderSlides() error: %v", err)
+	}
+	html := string(slides[0])
+	for _, expected := range []string{
+		"<table>",
+		"<th>Feature</th>",
+		`<th align="right">Ready</th>`,
+		"<del>Completed</del>",
+		`<a href="https://example.com/docs">https://example.com/docs</a>`,
+		`<input checked="" disabled="" type="checkbox">`,
+		`<input disabled="" type="checkbox">`,
+	} {
+		if !strings.Contains(html, expected) {
+			t.Errorf("rendered GFM HTML does not contain %q:\n%s", expected, html)
+		}
+	}
+	if strings.Contains(html, `style="text-align:right"`) {
+		t.Errorf("rendered GFM table uses a CSP-blocked inline style:\n%s", html)
 	}
 }
 

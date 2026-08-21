@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"html/template"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -71,6 +72,37 @@ func TestPresentationHandlerStreamsReload(t *testing.T) {
 	if !scanner.Scan() || scanner.Text() != "data: 2" {
 		t.Fatalf("reload data line = %q, error = %v", scanner.Text(), scanner.Err())
 	}
+}
+
+func TestPresentationServerCancelsSessionStreamDuringShutdown(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	listener, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	presentation := newPresentationState([]template.HTML{"<h1>Expected slide</h1>"})
+	server := &http.Server{
+		Handler:     presentationHandler(presentation, newTabTracker(cancel, time.Second)),
+		BaseContext: func(net.Listener) context.Context { return ctx },
+	}
+	serverErrors := make(chan error, 1)
+	go func() {
+		serverErrors <- server.Serve(listener)
+	}()
+
+	response, err := http.Get("http://" + listener.Addr().String() + "/api/session?revision=1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+
+	cancel()
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer shutdownCancel()
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		t.Fatalf("shutdown with an active session stream: %v", err)
+	}
+	<-serverErrors
 }
 
 func TestPresentationStatePublishesUpdates(t *testing.T) {

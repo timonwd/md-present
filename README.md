@@ -24,6 +24,7 @@ md-present [--no-open] <markdown-file>
 
 Slides are separated by a line containing only `---` (surrounding whitespace is allowed). Separators inside fenced code blocks are preserved as code.
 Relative image paths are resolved from the Markdown file's directory and embedded in the generated presentation.
+GitHub-Flavored Markdown tables, strikethrough, task lists, and automatic links are supported. Fenced code blocks with a recognized language are highlighted locally. Raw HTML remains disabled for safety.
 
 ```sh
 md-present ./example.md
@@ -45,7 +46,7 @@ The active slide is stored in the URL hash. Printing uses one slide per landscap
 
 ## MVP limitations
 
-This first release intentionally has no custom themes, presenter notes, transitions, Mermaid, math rendering, or syntax highlighting. Raw HTML in Markdown is not rendered. User-supplied remote image URLs may require network access in the browser; the presentation UI itself has no external dependencies.
+This first release intentionally has no custom themes, presenter notes, transitions, Mermaid, or math rendering. Raw HTML in Markdown is not rendered. User-supplied remote image URLs may require network access in the browser; the presentation UI itself has no external dependencies.
 
 ## AI agent skill
 

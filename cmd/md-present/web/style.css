@@ -7,6 +7,14 @@
   --line: #d9dce3;
   --accent: #3157d5;
   --code: #f0f1f5;
+  --syntax-ink: #1f2328;
+  --syntax-bg: #f7f7f7;
+  --syntax-keyword: #cf222e;
+  --syntax-name: #6639ba;
+  --syntax-literal: #0550ae;
+  --syntax-string: #0a3069;
+  --syntax-variable: #953800;
+  --syntax-comment: #57606a;
   --shadow: 0 2rem 5rem rgb(20 25 38 / 14%);
   font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
@@ -69,6 +77,26 @@ li { margin: 0.28em 0; padding-left: 0.18em; }
 a { color: var(--accent); text-underline-offset: 0.14em; }
 strong { font-weight: 700; }
 
+table {
+  width: 100%;
+  max-width: 48ch;
+  border-collapse: collapse;
+  font-size: 0.84em;
+  line-height: 1.3;
+}
+
+th, td {
+  padding: 0.45em 0.6em;
+  border: 1px solid var(--line);
+  text-align: left;
+}
+
+th[align="center"], td[align="center"] { text-align: center; }
+th[align="right"], td[align="right"] { text-align: right; }
+
+th { background: var(--code); font-weight: 700; }
+input[type="checkbox"] { margin: 0 0.45em 0 0; accent-color: var(--accent); opacity: 1; }
+
 blockquote {
   margin: 1.2em 0;
   padding-left: 1em;
@@ -96,6 +124,35 @@ pre {
 
 pre code { padding: 0; background: transparent; }
 img { display: block; max-width: 100%; max-height: 48vh; object-fit: contain; }
+
+.chroma {
+  color: var(--syntax-ink);
+  background: var(--syntax-bg);
+  -webkit-text-size-adjust: none;
+}
+
+.chroma .lnlinks { outline: none; color: inherit; text-decoration: none; }
+.chroma .lntd { margin: 0; padding: 0; border: 0; vertical-align: top; }
+.chroma .lntable { margin: 0; padding: 0; border: 0; border-spacing: 0; }
+.chroma .line { display: flex; }
+.chroma .lnt, .chroma .ln { margin-right: 0.4em; padding: 0 0.4em; color: var(--muted); white-space: pre; user-select: none; }
+.chroma .err { color: #f6f8fa; background: #82071e; }
+.chroma .hl { background: color-mix(in srgb, var(--syntax-ink) 12%, transparent); }
+.chroma .k, .chroma .kc, .chroma .kd, .chroma .kn, .chroma .kp, .chroma .kr, .chroma .kt,
+.chroma .o, .chroma .ow, .chroma .or { color: var(--syntax-keyword); }
+.chroma .ni, .chroma .nb, .chroma .nf, .chroma .fm, .chroma .nd { color: var(--syntax-name); }
+.chroma .no, .chroma .nt, .chroma .m, .chroma .mb, .chroma .mf, .chroma .mh, .chroma .mi,
+.chroma .il, .chroma .mo { color: var(--syntax-literal); }
+.chroma .s, .chroma .sa, .chroma .sb, .chroma .sc, .chroma .dl, .chroma .sd, .chroma .s2,
+.chroma .se, .chroma .sh, .chroma .si, .chroma .sx, .chroma .sr, .chroma .s1, .chroma .ss { color: var(--syntax-string); }
+.chroma .nv, .chroma .vc, .chroma .vg, .chroma .vi, .chroma .vm { color: var(--syntax-variable); }
+.chroma .c, .chroma .ch, .chroma .cm, .chroma .c1, .chroma .cs, .chroma .cp, .chroma .cpf,
+.chroma .go, .chroma .gp { color: var(--syntax-comment); }
+.chroma .gd { color: #82071e; background: #ffebe9; }
+.chroma .gi { color: #116329; background: #dafbe1; }
+.chroma .ge { font-style: italic; }
+.chroma .gs { font-weight: 700; }
+.chroma .gl { text-decoration: underline; }
 
 .progress {
   position: fixed;
@@ -126,8 +183,20 @@ img { display: block; max-width: 100%; max-height: 48vh; object-fit: contain; }
     --line: #363944;
     --accent: #8aa4ff;
     --code: #232630;
+    --syntax-ink: #e6edf3;
+    --syntax-bg: #0d1117;
+    --syntax-keyword: #ff7b72;
+    --syntax-name: #d2a8ff;
+    --syntax-literal: #79c0ff;
+    --syntax-string: #a5d6ff;
+    --syntax-variable: #79c0ff;
+    --syntax-comment: #8b949e;
     --shadow: 0 2rem 5rem rgb(0 0 0 / 35%);
   }
+
+  .chroma .err { color: #f85149; background: transparent; }
+  .chroma .gd { color: #ffa198; background: #490202; }
+  .chroma .gi { color: #56d364; background: #0f5323; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -143,7 +212,18 @@ img { display: block; max-width: 100%; max-height: 48vh; object-fit: contain; }
     --line: #d9dce3;
     --accent: #3157d5;
     --code: #f0f1f5;
+    --syntax-ink: #1f2328;
+    --syntax-bg: #f7f7f7;
+    --syntax-keyword: #cf222e;
+    --syntax-name: #6639ba;
+    --syntax-literal: #0550ae;
+    --syntax-string: #0a3069;
+    --syntax-variable: #953800;
+    --syntax-comment: #57606a;
   }
+  .chroma .err { color: #f6f8fa; background: #82071e; }
+  .chroma .gd { color: #82071e; background: #ffebe9; }
+  .chroma .gi { color: #116329; background: #dafbe1; }
   body { overflow: visible; background: white; }
   .deck { display: block; padding: 0; }
   .slide, .slide.is-active {
