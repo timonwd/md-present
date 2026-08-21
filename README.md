@@ -2,7 +2,24 @@
 
 `md-present` turns one Markdown file into a clean, local browser presentation. It is a small Go CLI with an embedded interface: no account, configuration, frontend toolchain, or network dependency is required.
 
-## Install from source
+## Install
+
+### Homebrew
+
+Install the latest release from the md-present tap:
+
+```sh
+brew tap timonwd/md-present https://github.com/timonwd/md-present
+brew install --cask md-present
+```
+
+Upgrade it later with:
+
+```sh
+brew upgrade --cask md-present
+```
+
+### From source
 
 Go 1.22 or newer is required.
 
