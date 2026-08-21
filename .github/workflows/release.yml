@@ -39,7 +39,7 @@ jobs:
         run: |
           test "$(go run ./cmd/md-present --version)" = "md-present ${RELEASE_TAG}"
           test "$(jq -r .version plugins/md-present/.codex-plugin/plugin.json)" = "${RELEASE_TAG}"
-          test "$(jq -r .version .claude-plugin/plugin.json)" = "${RELEASE_TAG}"
+          test "$(jq -r .version plugins/md-present/.claude-plugin/plugin.json)" = "${RELEASE_TAG}"
           test "$(jq -r '.plugins[0].version' .claude-plugin/marketplace.json)" = "${RELEASE_TAG}"
 
       - name: Add release binaries
