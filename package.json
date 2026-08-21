@@ -10,6 +10,6 @@
     "assets": "node scripts/sync-mermaid.mjs"
   },
   "devDependencies": {
-    "mermaid": "11.16.1"
+    "mermaid": "11.17.0"
   }
 }
