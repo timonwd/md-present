@@ -47,6 +47,36 @@ The active slide is stored in the URL hash. Printing uses one slide per landscap
 
 This first release intentionally has no live reload, custom themes, presenter notes, transitions, Mermaid, math rendering, or syntax highlighting. Raw HTML in Markdown is not rendered. User-supplied remote image URLs may require network access in the browser; the presentation UI itself has no external dependencies.
 
+## AI agent skill
+
+This repository is distributed as both a Codex and Claude Code plugin. Both use the instructions in [`skills/md-present/SKILL.md`](skills/md-present/SKILL.md).
+
+### Codex
+
+Add the repository marketplace, then install the plugin:
+
+```sh
+codex plugin marketplace add timonwd/md-present
+codex plugin add md-present@md-present
+```
+
+Start a new Codex task after installation so the skill is discovered.
+
+### Claude Code
+
+Run these commands inside an interactive Claude Code session:
+
+```text
+/plugin marketplace add timonwd/md-present
+/plugin install md-present@md-present
+```
+
+Run `/reload-plugins` if Claude Code prompts you to activate the newly installed plugin. The skill is available as `/md-present:md-present` and can also be selected automatically when relevant.
+
+### Direct Markdown import
+
+Tools that import skills directly from a Markdown file can download the identical root-level [`SKILL.md`](SKILL.md).
+
 ## Development
 
 ```sh
