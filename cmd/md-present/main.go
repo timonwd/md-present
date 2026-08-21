@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 )
 
-var version = "0.1.0"
+var version = "0.1.1"
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
