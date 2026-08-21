@@ -1,4 +1,0 @@
-interface:
-  display_name: "md-present"
-  short_description: "Build focused browser slide decks"
-  default_prompt: "Use $md-present to create or revise a focused slide deck and verify it with the md-present CLI."

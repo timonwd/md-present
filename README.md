@@ -67,7 +67,7 @@ This first release intentionally has no custom themes, presenter notes, transiti
 
 ## AI agent skill
 
-This repository is distributed as both a Codex and Claude Code plugin. Both use the instructions in [`skills/md-present/SKILL.md`](skills/md-present/SKILL.md).
+This repository is distributed as both a Codex and Claude Code plugin. Both use the same plugin package and its single [`SKILL.md`](plugins/md-present/skills/md-present/SKILL.md).
 
 ### Codex
 
@@ -93,7 +93,7 @@ Run `/reload-plugins` if Claude Code prompts you to activate the newly installed
 
 ### Direct Markdown import
 
-Tools that import skills directly from a Markdown file can download the identical root-level [`SKILL.md`](SKILL.md).
+Tools that import skills directly from a Markdown file can download the canonical [`SKILL.md`](plugins/md-present/skills/md-present/SKILL.md).
 
 ## License
 
