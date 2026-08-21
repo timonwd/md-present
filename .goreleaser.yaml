@@ -14,10 +14,7 @@ builds:
       - -s -w -X main.version={{.Version}}
     goos:
       - darwin
-      - linux
-      - windows
     goarch:
-      - amd64
       - arm64
 
 archives:
@@ -30,13 +27,7 @@ archives:
       - THIRD_PARTY_NOTICES
     formats:
       - tar.gz
-    format_overrides:
-      - goos: windows
-        formats:
-          - zip
-    name_template: >-
-      {{ .ProjectName }}_{{ .Version }}_{{ title .Os }}_
-      {{- if eq .Arch "amd64" }}x86_64{{ else }}{{ .Arch }}{{ end }}
+    name_template: "{{ .ProjectName }}_{{ .Version }}_Darwin_arm64"
 
 checksum:
   name_template: checksums.txt

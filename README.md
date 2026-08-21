@@ -4,6 +4,8 @@
 
 ## Install
 
+md-present supports Apple silicon Macs (arm64) only.
+
 ### Homebrew
 
 Install the latest release from the md-present tap:

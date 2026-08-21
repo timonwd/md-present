@@ -1,8 +1,9 @@
 # Releasing md-present
 
 GitHub Actions runs GoReleaser after a GitHub Release is published. It adds
-macOS, Linux, and Windows archives and a checksum file to the existing release,
-preserves its notes, and updates `Casks/md-present.rb` in this repository.
+an Apple silicon macOS archive and a checksum file to the existing release,
+preserves its notes, and updates `Casks/md-present.rb` in this repository. Other
+operating systems and Intel Macs are not supported release targets.
 
 The repository doubles as its own explicitly named Homebrew tap, avoiding a
 second repository and cross-repository access token. The release workflow needs
