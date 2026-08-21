@@ -4,22 +4,22 @@ cask "md-present" do
 
   on_macos do
     on_intel do
-      sha256 "ece515bb136d2993ba2eecde70003792c7153dbf2ee99720ceeed5bc761434d1"
+      sha256 "73f635afac3ae5d5d96109be5adfef113096a715f33f912ef7e16a380bba11ba"
       url "https://github.com/timonwd/md-present/releases/download/#{version}/md-present_#{version}_Darwin_x86_64.tar.gz"
     end
     on_arm do
-      sha256 "c9106931b24e149951a26af2a6adc8a1adc7440695f870494a8068719fc41189"
+      sha256 "46f2d91a1dfe44adc83c5f239f8f5007ec6a403ff876d13fa0d21884a968846a"
       url "https://github.com/timonwd/md-present/releases/download/#{version}/md-present_#{version}_Darwin_arm64.tar.gz"
     end
   end
 
   on_linux do
     on_intel do
-      sha256 "97902517378c4d16edb0e576d9b4aa86c0a1a014224dd7d7c2fd59acb1dd5467"
+      sha256 "996fea04762b899ac065a05f4d62dd7ab89575d831743cdc8706521198bb0f75"
       url "https://github.com/timonwd/md-present/releases/download/#{version}/md-present_#{version}_Linux_x86_64.tar.gz"
     end
     on_arm do
-      sha256 "ce8af3d952f1a291d072489c06f229da4fcbe95b2b02c6b0282a3eace0aee0f5"
+      sha256 "13431c44d50eea4c0b12474c0c16ce15fae69376b4ec5deedee62bf7c41158cf"
       url "https://github.com/timonwd/md-present/releases/download/#{version}/md-present_#{version}_Linux_arm64.tar.gz"
     end
   end
