@@ -5,5 +5,5 @@
     "helpers:pinGitHubActionDigests"
   ],
   "automerge": true,
-  "platformAutomerge": false
+  "platformAutomerge": true
 }
