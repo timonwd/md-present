@@ -50,7 +50,6 @@
   window.addEventListener("hashchange", () => show(hashIndex()));
   show(hashIndex());
 
-  fetch("/api/session", { cache: "no-store" })
-    .then((response) => response.text())
-    .catch(() => {});
+  const session = new EventSource(`/api/session?revision=${encodeURIComponent(document.body.dataset.revision)}`);
+  session.addEventListener("reload", () => window.location.reload());
 })();

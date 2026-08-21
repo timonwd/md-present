@@ -1,10 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"html/template"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -12,7 +16,8 @@ import (
 
 func TestPresentationHandler(t *testing.T) {
 	tracker := newTabTracker(func() {}, time.Second)
-	handler := presentationHandler([]template.HTML{"<h1>Expected slide</h1>"}, tracker)
+	presentation := newPresentationState([]template.HTML{"<h1>Expected slide</h1>"})
+	handler := presentationHandler(presentation, tracker)
 
 	request := httptest.NewRequest(http.MethodGet, "/", nil)
 	response := httptest.NewRecorder()
@@ -36,6 +41,116 @@ func TestPresentationHandler(t *testing.T) {
 	handler.ServeHTTP(missingResponse, missingRequest)
 	if missingResponse.Code != http.StatusNotFound {
 		t.Fatalf("GET /source.md status = %d, want 404", missingResponse.Code)
+	}
+}
+
+func TestPresentationHandlerStreamsReload(t *testing.T) {
+	presentation := newPresentationState([]template.HTML{"<h1>Before</h1>"})
+	server := httptest.NewServer(presentationHandler(presentation, newTabTracker(func() {}, time.Second)))
+	defer server.Close()
+
+	response, err := server.Client().Get(server.URL + "/api/session?revision=1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if contentType := response.Header.Get("Content-Type"); contentType != "text/event-stream" {
+		t.Fatalf("session Content-Type = %q", contentType)
+	}
+
+	scanner := bufio.NewScanner(response.Body)
+	for range 3 {
+		if !scanner.Scan() {
+			t.Fatalf("read ready event: %v", scanner.Err())
+		}
+	}
+	presentation.update([]template.HTML{"<h1>After</h1>"})
+	if !scanner.Scan() || scanner.Text() != "event: reload" {
+		t.Fatalf("reload event line = %q, error = %v", scanner.Text(), scanner.Err())
+	}
+	if !scanner.Scan() || scanner.Text() != "data: 2" {
+		t.Fatalf("reload data line = %q, error = %v", scanner.Text(), scanner.Err())
+	}
+}
+
+func TestPresentationStatePublishesUpdates(t *testing.T) {
+	presentation := newPresentationState([]template.HTML{"<h1>Before</h1>"})
+	updates, revision, unsubscribe := presentation.subscribe()
+	defer unsubscribe()
+	if revision != 1 {
+		t.Fatalf("initial revision = %d, want 1", revision)
+	}
+	if presentation.update([]template.HTML{"<h1>Before</h1>"}) {
+		t.Fatal("identical slides triggered an update")
+	}
+	if !presentation.update([]template.HTML{"<h1>After</h1>"}) {
+		t.Fatal("changed slides did not trigger an update")
+	}
+	select {
+	case revision = <-updates:
+		if revision != 2 {
+			t.Fatalf("published revision = %d, want 2", revision)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("changed slides did not publish a revision")
+	}
+}
+
+func TestRefreshPresentationKeepsLastValidRender(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "slides.md")
+	if err := os.WriteFile(path, []byte("# Before"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	presentation := newPresentationState([]template.HTML{"<h1>Before</h1>\n"})
+	if err := os.WriteFile(path, []byte("# After"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := refreshPresentation(path, presentation); err != nil {
+		t.Fatalf("refreshPresentation() error: %v", err)
+	}
+	slides, revision := presentation.snapshot()
+	if revision != 2 || !strings.Contains(string(slides[0]), "After") {
+		t.Fatalf("updated presentation = (%q, %d)", slides, revision)
+	}
+
+	if err := os.WriteFile(path, []byte("---"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := refreshPresentation(path, presentation); err == nil {
+		t.Fatal("refreshPresentation() accepted an empty deck")
+	}
+	slides, revision = presentation.snapshot()
+	if revision != 2 || !strings.Contains(string(slides[0]), "After") {
+		t.Fatalf("invalid refresh replaced presentation = (%q, %d)", slides, revision)
+	}
+}
+
+func TestRefreshPresentationDetectsLocalImageChanges(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "slides.md")
+	imagePath := filepath.Join(directory, "image.png")
+	if err := os.WriteFile(path, []byte("![Image](image.png)"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(imagePath, []byte("before"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	initial, err := renderSlides([]byte("![Image](image.png)"), directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	presentation := newPresentationState(initial)
+
+	if err := os.WriteFile(imagePath, []byte("after"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := refreshPresentation(path, presentation); err != nil {
+		t.Fatalf("refreshPresentation() error: %v", err)
+	}
+	slides, revision := presentation.snapshot()
+	if revision != 2 || slices.Equal(slides, initial) {
+		t.Fatalf("image refresh presentation = (%q, %d)", slides, revision)
 	}
 }
 

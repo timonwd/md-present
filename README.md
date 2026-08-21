@@ -30,7 +30,7 @@ md-present ./example.md
 md-present --no-open ./example.md
 ```
 
-The server listens only on a random `127.0.0.1` port. Without `--no-open`, the default browser opens automatically. Closing the last connected presentation tab normally stops the server after a short grace period; browser crashes and forced termination may prevent a final disconnect from being observed. Use Ctrl+C to stop it explicitly.
+The server listens only on a random `127.0.0.1` port. Without `--no-open`, the default browser opens automatically. Saving the Markdown file or a referenced local image reloads connected presentation tabs and keeps the active slide selected. Invalid intermediate saves leave the last valid presentation visible. Closing the last connected presentation tab normally stops the server after a short grace period; browser crashes and forced termination may prevent a final disconnect from being observed. Use Ctrl+C to stop it explicitly.
 
 ## Controls
 
@@ -45,7 +45,7 @@ The active slide is stored in the URL hash. Printing uses one slide per landscap
 
 ## MVP limitations
 
-This first release intentionally has no live reload, custom themes, presenter notes, transitions, Mermaid, math rendering, or syntax highlighting. Raw HTML in Markdown is not rendered. User-supplied remote image URLs may require network access in the browser; the presentation UI itself has no external dependencies.
+This first release intentionally has no custom themes, presenter notes, transitions, Mermaid, math rendering, or syntax highlighting. Raw HTML in Markdown is not rendered. User-supplied remote image URLs may require network access in the browser; the presentation UI itself has no external dependencies.
 
 ## AI agent skill
 

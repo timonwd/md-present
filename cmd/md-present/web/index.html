@@ -7,7 +7,7 @@
     <title>md-present</title>
     <link rel="stylesheet" href="/assets/style.css">
   </head>
-  <body>
+  <body data-revision="{{.Revision}}">
     <main class="deck" aria-live="polite">
       {{range $index, $slide := .Slides}}
       <section class="slide" id="slide-{{inc $index}}" aria-label="Slide {{inc $index}} of {{len $.Slides}}">

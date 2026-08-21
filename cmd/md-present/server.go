@@ -13,7 +13,10 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"runtime"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -30,10 +33,62 @@ var pageTemplate = template.Must(template.New("index.html").Funcs(template.FuncM
 const (
 	shutdownTimeout = 3 * time.Second
 	tabCloseGrace   = 2 * time.Second
+	liveReloadPoll  = 250 * time.Millisecond
 )
 
 type pageData struct {
-	Slides []template.HTML
+	Slides   []template.HTML
+	Revision uint64
+}
+
+type presentationState struct {
+	mu          sync.RWMutex
+	slides      []template.HTML
+	revision    uint64
+	subscribers map[chan uint64]struct{}
+}
+
+func newPresentationState(slides []template.HTML) *presentationState {
+	return &presentationState{
+		slides:      slides,
+		revision:    1,
+		subscribers: make(map[chan uint64]struct{}),
+	}
+}
+
+func (p *presentationState) snapshot() ([]template.HTML, uint64) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.slides, p.revision
+}
+
+func (p *presentationState) update(slides []template.HTML) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if slices.Equal(p.slides, slides) {
+		return false
+	}
+	p.slides = slides
+	p.revision++
+	for subscriber := range p.subscribers {
+		select {
+		case subscriber <- p.revision:
+		default:
+		}
+	}
+	return true
+}
+
+func (p *presentationState) subscribe() (<-chan uint64, uint64, func()) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	updates := make(chan uint64, 1)
+	p.subscribers[updates] = struct{}{}
+	return updates, p.revision, func() {
+		p.mu.Lock()
+		delete(p.subscribers, updates)
+		p.mu.Unlock()
+	}
 }
 
 type tabTracker struct {
@@ -70,7 +125,7 @@ func (t *tabTracker) connected() func() {
 	}
 }
 
-func presentationHandler(slides []template.HTML, tracker *tabTracker) http.Handler {
+func presentationHandler(presentation *presentationState, tracker *tabTracker) http.Handler {
 	assets, err := fs.Sub(webFiles, "web")
 	if err != nil {
 		panic(err)
@@ -84,19 +139,40 @@ func presentationHandler(slides []template.HTML, tracker *tabTracker) http.Handl
 			http.Error(w, "streaming unavailable", http.StatusInternalServerError)
 			return
 		}
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("Connection", "keep-alive")
 		w.WriteHeader(http.StatusOK)
-		_, _ = io.WriteString(w, "connected\n")
+		updates, revision, unsubscribe := presentation.subscribe()
+		defer unsubscribe()
+		_, _ = fmt.Fprintf(w, "event: ready\ndata: %d\n\n", revision)
 		flusher.Flush()
 		disconnected := tracker.connected()
 		defer disconnected()
-		<-r.Context().Done()
+
+		clientRevision, _ := strconv.ParseUint(r.URL.Query().Get("revision"), 10, 64)
+		if clientRevision != revision {
+			_, _ = fmt.Fprintf(w, "event: reload\ndata: %d\n\n", revision)
+			flusher.Flush()
+		}
+
+		for {
+			select {
+			case revision := <-updates:
+				if _, err := fmt.Fprintf(w, "event: reload\ndata: %d\n\n", revision); err != nil {
+					return
+				}
+				flusher.Flush()
+			case <-r.Context().Done():
+				return
+			}
+		}
 	})
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
-		if err := pageTemplate.Execute(w, pageData{Slides: slides}); err != nil {
+		slides, revision := presentation.snapshot()
+		if err := pageTemplate.Execute(w, pageData{Slides: slides, Revision: revision}); err != nil {
 			http.Error(w, "render presentation", http.StatusInternalServerError)
 		}
 	})
@@ -109,7 +185,7 @@ func presentationHandler(slides []template.HTML, tracker *tabTracker) http.Handl
 	})
 }
 
-func servePresentation(slides []template.HTML, noOpen bool, stdout io.Writer) error {
+func servePresentation(markdownPath string, slides []template.HTML, noOpen bool, stdout io.Writer) error {
 	listener, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
 		return fmt.Errorf("start local server: %w", err)
@@ -118,8 +194,9 @@ func servePresentation(slides []template.HTML, noOpen bool, stdout io.Writer) er
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	tracker := newTabTracker(stop, tabCloseGrace)
+	presentation := newPresentationState(slides)
 	server := &http.Server{
-		Handler:           presentationHandler(slides, tracker),
+		Handler:           presentationHandler(presentation, tracker),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       30 * time.Second,
 	}
@@ -127,6 +204,7 @@ func servePresentation(slides []template.HTML, noOpen bool, stdout io.Writer) er
 	go func() {
 		serverErrors <- server.Serve(listener)
 	}()
+	go watchPresentation(ctx, markdownPath, presentation, liveReloadPoll)
 
 	url := "http://" + listener.Addr().String() + "/"
 	fmt.Fprintln(stdout, url)
@@ -153,6 +231,32 @@ func servePresentation(slides []template.HTML, noOpen bool, stdout io.Writer) er
 		}
 		return nil
 	}
+}
+
+func watchPresentation(ctx context.Context, markdownPath string, presentation *presentationState, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			_ = refreshPresentation(markdownPath, presentation)
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func refreshPresentation(markdownPath string, presentation *presentationState) error {
+	source, err := os.ReadFile(markdownPath)
+	if err != nil {
+		return err
+	}
+	slides, err := renderSlides(source, filepath.Dir(markdownPath))
+	if err != nil {
+		return err
+	}
+	presentation.update(slides)
+	return nil
 }
 
 func shutdownServer(server *http.Server) {

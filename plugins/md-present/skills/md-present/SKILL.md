@@ -21,7 +21,7 @@ Empty content before, after, or between separators does not create a slide. A `-
 
 Do not introduce or promise features outside the current tool:
 
-- no live reload or user configuration
+- no user configuration
 - no custom themes beyond automatic light and dark mode
 - no presenter notes or transitions
 - no Mermaid or math rendering
@@ -43,6 +43,8 @@ Run `md-present --version` first when availability is uncertain. In an md-presen
 Use the default command for an interactive presentation. It prints one loopback URL and opens the browser. Use `--no-open` for automated validation; it prints the URL without launching a browser and continues running until signaled.
 
 The server binds only to `127.0.0.1` on a free port. Stop it with Ctrl+C or SIGTERM. Closing the last connected presentation tab normally stops it after a short grace period, but treat that behavior as best-effort.
+
+Saving the Markdown file or a referenced local image live-reloads connected tabs. The URL hash preserves the active slide when it still exists; if a save cannot be rendered, the last valid presentation stays visible until the source is valid again.
 
 ## Validate a deck
 
