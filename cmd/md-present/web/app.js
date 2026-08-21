@@ -27,6 +27,19 @@
     return target instanceof Element && Boolean(target.closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])"));
   }
 
+  document.querySelector(".deck").addEventListener("click", (event) => {
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      isEditable(event.target) ||
+      !(event.target instanceof Element) ||
+      !event.target.closest(".slide") ||
+      event.target.closest("a, button, summary, input, select, textarea, [contenteditable]:not([contenteditable='false'])")
+    ) return;
+
+    show(current + 1);
+  });
+
   document.addEventListener("keydown", (event) => {
     if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || isEditable(event.target)) return;
 
