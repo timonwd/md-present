@@ -95,15 +95,6 @@ Run `/reload-plugins` if Claude Code prompts you to activate the newly installed
 
 Tools that import skills directly from a Markdown file can download the identical root-level [`SKILL.md`](SKILL.md).
 
-## Development
-
-```sh
-gofmt -w ./cmd/md-present/*.go
-go vet ./...
-go test ./...
-go build ./...
-```
-
 ## License
 
 `md-present` is available under the [MIT License](LICENSE). Third-party
