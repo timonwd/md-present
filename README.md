@@ -1,3 +1,5 @@
+![md-present — Markdown in. Slides out.](assets/social-preview.png)
+
 # md-present
 
 `md-present` turns one Markdown file into a clean, local browser presentation. The installed CLI has an embedded interface: no account, configuration, frontend toolchain, or network dependency is required at runtime.
