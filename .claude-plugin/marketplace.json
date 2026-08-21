@@ -1,0 +1,15 @@
+{
+  "name": "md-present",
+  "owner": {
+    "name": "Timon Weide"
+  },
+  "description": "Agent tooling for creating and validating md-present slide decks.",
+  "plugins": [
+    {
+      "name": "md-present",
+      "source": "./plugins/md-present",
+      "description": "Create and validate browser slide decks for md-present.",
+      "version": "0.1.0"
+    }
+  ]
+}

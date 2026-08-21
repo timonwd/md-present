@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "md-present",
+  "displayName": "md-present",
+  "version": "0.1.0",
+  "description": "Create and validate browser slide decks for md-present.",
+  "author": {
+    "name": "Timon Weide"
+  },
+  "homepage": "https://github.com/timonwd/md-present",
+  "repository": "https://github.com/timonwd/md-present",
+  "keywords": ["markdown", "slides", "presentations", "cli"]
+}
