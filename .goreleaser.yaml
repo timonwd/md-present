@@ -24,6 +24,10 @@ archives:
   - id: md-present
     ids:
       - md-present
+    files:
+      - LICENSE
+      - README.md
+      - THIRD_PARTY_NOTICES
     formats:
       - tar.gz
     format_overrides:
