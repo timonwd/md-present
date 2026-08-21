@@ -5,13 +5,15 @@ presentation. Keep the implementation direct and readable.
 
 ## Code layout
 
-- Keep the executable in `cmd/md-present/` so `go install` produces the
+- Keep the executable in `cmd/md-present/` so release builds produce the
   `md-present` binary.
 - Keep browser code as plain embedded HTML, CSS, and JavaScript under
   `cmd/md-present/web/`.
 - Use `go:embed` for presentation UI assets.
-- Do not add Node, frontend frameworks, external UI assets, or a frontend build
-  pipeline.
+- Use the root `package.json` and pnpm lockfile only to materialize the pinned
+  Mermaid browser asset before Go compilation. Keep generated assets ignored.
+- Do not add a frontend framework or bundler. Release builds embed the generated
+  Mermaid runtime so presentations remain offline-capable.
 - Keep dependencies minimal. Goldmark remains the authority for CommonMark
   parsing and raw-HTML safety.
 

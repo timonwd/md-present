@@ -128,6 +128,24 @@ func TestRenderSlidesGFM(t *testing.T) {
 	}
 }
 
+func TestRenderSlidesKeepsMermaidSourceEscaped(t *testing.T) {
+	source := []byte("```mermaid\nflowchart LR\nA[\"<script>alert(1)</script>\"] --> B\n```\n")
+
+	slides, err := renderSlides(source, "")
+	if err != nil {
+		t.Fatalf("renderSlides() error: %v", err)
+	}
+	html := string(slides[0])
+	for _, expected := range []string{`class="language-mermaid"`, `&lt;script&gt;alert(1)&lt;/script&gt;`, `--&gt; B`} {
+		if !strings.Contains(html, expected) {
+			t.Errorf("rendered Mermaid source does not contain %q:\n%s", expected, html)
+		}
+	}
+	if strings.Contains(html, "<script>") {
+		t.Errorf("rendered Mermaid source contains executable script markup:\n%s", html)
+	}
+}
+
 func TestRenderSlidesRejectsEmptyDeck(t *testing.T) {
 	if _, err := renderSlides([]byte(" \n---\n "), ""); err == nil {
 		t.Fatal("renderSlides() accepted an empty deck")

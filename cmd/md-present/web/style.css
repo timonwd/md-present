@@ -261,3 +261,42 @@ img { display: block; max-width: 100%; max-height: 48vh; object-fit: contain; }
   }
   .progress, .fullscreen-button { display: none; }
 }
+
+.mermaid-diagram {
+  display: grid;
+  width: 100%;
+  max-width: 100%;
+  max-height: 52vh;
+  margin: 1em 0;
+  overflow: auto;
+  place-items: center;
+}
+
+.mermaid-diagram__image {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 50vh;
+  object-fit: contain;
+}
+
+.mermaid-error {
+  display: grid;
+  width: min(100%, 48ch);
+  gap: 0.3em;
+  padding: 0.8em 1em;
+  border: 1px solid #b33b3b;
+  border-radius: 0.35rem;
+  background: color-mix(in srgb, #b33b3b 10%, var(--stage));
+  color: var(--ink);
+  font-size: 0.82em;
+}
+
+.mermaid-error span { color: var(--muted); white-space: pre-wrap; }
+.mermaid-diagram .mermaid-error + pre { width: min(100%, 48ch); margin-top: 0.6em; }
+
+@media print {
+  .mermaid-diagram { max-height: 58vh; overflow: hidden; }
+  .mermaid-diagram__image { max-height: 56vh; }
+}

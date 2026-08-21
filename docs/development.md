@@ -4,23 +4,24 @@ Run all commands from the repository root.
 
 ## Build from source
 
-Go 1.22 or newer is required.
-
-Install the latest source release directly:
-
-```sh
-go install github.com/timonwd/md-present/cmd/md-present@latest
-```
+Go 1.25, Node.js 24, and pnpm 11 are required.
 
 Build the current checkout for local development:
 
 ```sh
+pnpm install --frozen-lockfile --ignore-scripts
+pnpm run assets
 go build -o md-present ./cmd/md-present
 ```
+
+The generated Mermaid JavaScript and license files are intentionally ignored by
+Git. Release binaries embed them, so Homebrew users do not need Node.js or pnpm.
 
 ## Standard validation
 
 ```sh
+pnpm install --frozen-lockfile --ignore-scripts
+pnpm run assets
 gofmt -w ./cmd/md-present/*.go
 go vet ./...
 go test ./...

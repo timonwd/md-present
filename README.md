@@ -1,6 +1,6 @@
 # md-present
 
-`md-present` turns one Markdown file into a clean, local browser presentation. It is a small Go CLI with an embedded interface: no account, configuration, frontend toolchain, or network dependency is required.
+`md-present` turns one Markdown file into a clean, local browser presentation. The installed CLI has an embedded interface: no account, configuration, frontend toolchain, or network dependency is required at runtime.
 
 ## Install
 
@@ -27,7 +27,7 @@ md-present [--no-open] <markdown-file>
 
 Slides are separated by a line containing only `---` (surrounding whitespace is allowed). Separators inside fenced code blocks are preserved as code.
 Relative image paths are resolved from the Markdown file's directory and embedded in the generated presentation.
-GitHub-Flavored Markdown tables, strikethrough, task lists, and automatic links are supported. Fenced code blocks with a recognized language are highlighted locally. Raw HTML remains disabled for safety.
+GitHub-Flavored Markdown tables, strikethrough, task lists, and automatic links are supported. Fenced code blocks with a recognized language are highlighted locally. A fenced `mermaid` block renders as a diagram using the embedded Mermaid runtime. Raw HTML remains disabled for safety.
 
 ```sh
 md-present ./example.md
@@ -49,7 +49,7 @@ Use the button in the upper-right corner to enter or exit fullscreen. The active
 
 ## MVP limitations
 
-This first release intentionally has no custom themes, presenter notes, transitions, Mermaid, or math rendering. Raw HTML in Markdown is not rendered. User-supplied remote image URLs may require network access in the browser; the presentation UI itself has no external dependencies.
+This first release intentionally has no custom themes, presenter notes, transitions, or math rendering. Raw HTML in Markdown is not rendered. User-supplied remote image URLs may require network access in the browser; the presentation UI and Mermaid rendering have no runtime network dependency.
 
 ## AI agent skill
 

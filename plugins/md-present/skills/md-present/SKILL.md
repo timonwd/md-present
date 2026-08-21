@@ -5,7 +5,7 @@ description: Create, revise, validate, and run browser slide decks for the md-pr
 
 # md-present
 
-Use standard Markdown and GitHub-Flavored Markdown tables, strikethrough, task lists, and automatic links. Add a language to fenced code blocks when syntax highlighting is useful. Focus on md-present's presentation rules rather than teaching Markdown syntax.
+Use standard Markdown and GitHub-Flavored Markdown tables, strikethrough, task lists, and automatic links. Add a language to fenced code blocks when syntax highlighting is useful. Use a fenced `mermaid` block for diagrams that benefit from flow, sequence, hierarchy, or other relationships. Focus on md-present's presentation rules rather than teaching Markdown syntax.
 
 ## Prepare a deck
 
@@ -24,10 +24,10 @@ Do not introduce or promise features outside the current tool:
 - no user configuration
 - no custom themes beyond automatic light and dark mode
 - no presenter notes or transitions
-- no Mermaid or math rendering
-- no external UI assets or frontend build pipeline
+- no math rendering
+- no runtime-loaded external UI assets, frontend framework, or bundler
 
-Fenced code with a recognized language is highlighted locally. Unknown or omitted languages retain escaped plain-code presentation styling.
+Fenced Mermaid diagrams and recognized code languages render locally from embedded assets. Unknown or omitted languages retain escaped plain-code presentation styling.
 
 ## Run the presentation
 
@@ -37,7 +37,7 @@ Use:
 md-present [--no-open] <deck.md>
 ```
 
-Run `md-present --version` first when availability is uncertain. In an md-present source checkout, build with `go build -o md-present ./cmd/md-present`; do not add Node or another build system.
+Run `md-present --version` first when availability is uncertain. In an md-present source checkout, run `pnpm install --frozen-lockfile --ignore-scripts`, `pnpm run assets`, then `go build -o md-present ./cmd/md-present`.
 
 Use the default command for an interactive presentation. It prints one loopback URL and opens the browser. Use `--no-open` for automated validation; it prints the URL without launching a browser and continues running until signaled.
 

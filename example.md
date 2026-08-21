@@ -45,7 +45,8 @@ Everything stays readable in light and dark mode.
 | CommonMark | Native | yes |
 | GFM extensions | Native | yes |
 | Code highlighting | Chroma | yes |
-| Mermaid and math | Not included | no |
+| Mermaid diagrams | Embedded | yes |
+| Math | Not included | no |
 
 Left, centered, and right-aligned columns remain CSP-safe.
 
@@ -77,6 +78,19 @@ content stays text
 ```
 
 The separator remains part of the fenced block instead of creating another slide.
+
+---
+
+## Diagrams render from fenced Markdown
+
+```mermaid
+flowchart LR
+    A[Write Markdown] --> B[Run md-present]
+    B --> C[Present locally]
+    B --> D[Print or share]
+```
+
+Mermaid runs from the embedded application bundle, without a CDN or runtime network request.
 
 ---
 

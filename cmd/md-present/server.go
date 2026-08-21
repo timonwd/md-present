@@ -23,7 +23,7 @@ import (
 	"time"
 )
 
-//go:embed web/*
+//go:embed web/app.js web/index.html web/mermaid.LICENSE.txt web/mermaid.min.js web/style.css
 var webFiles embed.FS
 
 var pageTemplate = template.Must(template.New("index.html").Funcs(template.FuncMap{
