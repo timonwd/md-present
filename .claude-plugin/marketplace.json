@@ -9,7 +9,7 @@
       "name": "md-present",
       "source": "./plugins/md-present",
       "description": "Create and validate browser slide decks for md-present.",
-      "version": "0.1.2"
+      "version": "0.1.3"
     }
   ]
 }
