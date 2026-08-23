@@ -5,7 +5,7 @@ description: Create, revise, validate, and run browser slide decks for the md-pr
 
 # md-present
 
-Use standard Markdown and GitHub-Flavored Markdown tables, strikethrough, task lists, and automatic links. Add a language to fenced code blocks when syntax highlighting is useful. Use a fenced `mermaid` block for diagrams that benefit from flow, sequence, hierarchy, or other relationships. Focus on md-present's presentation rules rather than teaching Markdown syntax.
+Use standard Markdown and GitHub-Flavored Markdown tables, strikethrough, task lists, and automatic links. Add a language to fenced code blocks when syntax highlighting is useful. Use a fenced `mermaid` block for diagrams that benefit from flow, sequence, hierarchy, or other relationships. md-present's compatibility baseline is flowcharts, sequence, class, state, entity-relationship, timeline, mind map, and architecture diagrams; other bundled Mermaid types may render but are not guaranteed. Keep diagrams static: Mermaid `init` and `config` directives and interactive callbacks are not supported. Refer to the [Mermaid documentation](https://mermaid.js.org/intro/) for diagram syntax. Focus on md-present's presentation rules rather than teaching Markdown syntax.
 
 ## Prepare a deck
 

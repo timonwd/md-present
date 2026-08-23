@@ -33,6 +33,7 @@
     code.parentElement.replaceWith(figure);
     return { figure, source: code.textContent, index };
   });
+  const mermaidConfigurationDirective = /^\s*%%\{\s*(?:config|init)\s*:/im;
 
   function showDiagramError(diagram, error) {
     const message = document.createElement("div");
@@ -109,6 +110,9 @@
       diagram.figure.setAttribute("aria-busy", "true");
       const id = `mermaid-diagram-${diagram.index + 1}`;
       try {
+        if (mermaidConfigurationDirective.test(diagram.source)) {
+          throw new Error("Mermaid configuration directives are not supported.");
+        }
         const { svg } = await globalThis.mermaid.render(id, diagram.source);
         const image = safeDiagramImage(svg, `Mermaid diagram ${diagram.index + 1}`);
         image.addEventListener("error", () => {

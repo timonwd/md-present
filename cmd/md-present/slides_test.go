@@ -148,6 +148,48 @@ func TestRenderSlidesKeepsMermaidSourceEscaped(t *testing.T) {
 	}
 }
 
+func TestMermaidTypesFixtureHasBaselineAndErrorCases(t *testing.T) {
+	source, err := os.ReadFile(filepath.Join("..", "..", "fixtures", "mermaid-types.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	slides, err := renderSlides(source, "")
+	if err != nil {
+		t.Fatalf("renderSlides() error: %v", err)
+	}
+	if len(slides) != 11 {
+		t.Fatalf("renderSlides() returned %d slides, want 11", len(slides))
+	}
+
+	for _, expected := range []string{
+		"flowchart LR",
+		"sequenceDiagram",
+		"classDiagram",
+		"stateDiagram-v2",
+		"erDiagram",
+		"timeline",
+		"mindmap",
+		"architecture-beta",
+		"this is not Mermaid",
+		"%%{init:",
+	} {
+		if !strings.Contains(string(source), expected) {
+			t.Errorf("Mermaid fixture does not contain %q", expected)
+		}
+	}
+
+	mermaidSlides := 0
+	for _, slide := range slides {
+		if strings.Contains(string(slide), `class="language-mermaid"`) {
+			mermaidSlides++
+		}
+	}
+	if mermaidSlides != 10 {
+		t.Errorf("fixture has %d Mermaid slides, want 10", mermaidSlides)
+	}
+}
+
 func TestRenderSlidesRejectsEmptyDeck(t *testing.T) {
 	if _, err := renderSlides([]byte(" \n---\n "), ""); err == nil {
 		t.Fatal("renderSlides() accepted an empty deck")
