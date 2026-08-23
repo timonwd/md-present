@@ -154,6 +154,59 @@ func TestRenderSlidesRejectsEmptyDeck(t *testing.T) {
 	}
 }
 
+func TestRenderSlidesWarnsAboutUnterminatedFencedCodeBlock(t *testing.T) {
+	for _, fence := range []string{"```", "~~~"} {
+		t.Run(fence, func(t *testing.T) {
+			var warnings bytes.Buffer
+			source := []byte("# First\n\n" + fence + "text\n---\n# Still code")
+
+			slides, err := renderSlidesWithWarnings(source, "", &warnings)
+			if err != nil {
+				t.Fatalf("renderSlidesWithWarnings() error: %v", err)
+			}
+			if len(slides) != 1 {
+				t.Fatalf("renderSlidesWithWarnings() returned %d slides, want 1", len(slides))
+			}
+			want := "md-present: warning: unterminated fenced code block continues to the end of the document\n"
+			if got := warnings.String(); got != want {
+				t.Fatalf("warnings = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+func TestUnterminatedFenceFixtureWarnsAndPreservesGoldmarkSemantics(t *testing.T) {
+	source, err := os.ReadFile(filepath.Join("..", "..", "fixtures", "unterminated-fence.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var warnings bytes.Buffer
+	slides, err := renderSlidesWithWarnings(source, "", &warnings)
+	if err != nil {
+		t.Fatalf("renderSlidesWithWarnings() error: %v", err)
+	}
+	if len(slides) != 1 {
+		t.Fatalf("renderSlidesWithWarnings() returned %d slides, want 1", len(slides))
+	}
+	if !strings.Contains(string(slides[0]), "This is code, not a second slide") {
+		t.Fatal("unterminated fence fixture did not remain code")
+	}
+	if got := warnings.String(); got != "md-present: warning: unterminated fenced code block continues to the end of the document\n" {
+		t.Fatalf("warnings = %q", got)
+	}
+}
+
+func TestRenderSlidesDoesNotWarnAboutTerminatedFencedCodeBlock(t *testing.T) {
+	var warnings bytes.Buffer
+	if _, err := renderSlidesWithWarnings([]byte("```text\ncode\n```"), "", &warnings); err != nil {
+		t.Fatalf("renderSlidesWithWarnings() error: %v", err)
+	}
+	if got := warnings.String(); got != "" {
+		t.Fatalf("warnings = %q, want none", got)
+	}
+}
+
 func TestExternalMediaReferences(t *testing.T) {
 	deckDirectory := filepath.Join(t.TempDir(), "deck")
 	source := []byte(`![Local](image.png)
