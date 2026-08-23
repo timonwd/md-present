@@ -21,7 +21,7 @@
   let overflowWarningExpanded = false;
   let loadWarningActive = false;
   let loadWarningShown = false;
-  const observedImages = new WeakSet();
+  const observedMedia = new WeakSet();
   const overflowWarningDuration = 5000;
   const overflowTransitionDuration = 180;
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -224,12 +224,16 @@
   async function measureOverflow(generation) {
     await (document.fonts?.ready || Promise.resolve());
     await diagramRender.catch(() => {});
-    Array.from(document.images).forEach((image) => {
-      if (observedImages.has(image)) return;
-      observedImages.add(image);
-      if (!image.complete) {
-        image.addEventListener("load", scheduleOverflowMeasurement, { once: true });
-        image.addEventListener("error", scheduleOverflowMeasurement, { once: true });
+    document.querySelectorAll("img, video").forEach((media) => {
+      if (observedMedia.has(media)) return;
+      observedMedia.add(media);
+      if (media instanceof HTMLImageElement && !media.complete) {
+        media.addEventListener("load", scheduleOverflowMeasurement, { once: true });
+        media.addEventListener("error", scheduleOverflowMeasurement, { once: true });
+      }
+      if (media instanceof HTMLVideoElement) {
+        media.addEventListener("loadedmetadata", scheduleOverflowMeasurement, { once: true });
+        media.addEventListener("error", scheduleOverflowMeasurement, { once: true });
       }
     });
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
@@ -370,6 +374,10 @@
     return target instanceof Element && Boolean(target.closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])"));
   }
 
+  function isMediaControl(target) {
+    return target instanceof Element && Boolean(target.closest("video, audio"));
+  }
+
   function scrollActiveSlide(direction, key) {
     const slide = slides[current];
     if (!slide.classList.contains("has-overflow")) return false;
@@ -405,6 +413,7 @@
       event.defaultPrevented ||
       event.button !== 0 ||
       isEditable(event.target) ||
+      isMediaControl(event.target) ||
       !(event.target instanceof Element) ||
       !event.target.closest(".slide") ||
       event.target.closest("a, button, summary, input, select, textarea, [contenteditable]:not([contenteditable='false'])")
@@ -414,7 +423,7 @@
   });
 
   document.addEventListener("keydown", (event) => {
-    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || isEditable(event.target)) return;
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || isEditable(event.target) || isMediaControl(event.target)) return;
 
     if (event.key.toLowerCase() === "o") {
       event.preventDefault();

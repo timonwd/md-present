@@ -9,7 +9,7 @@ md-present is built to be agent-first. Agents already use Markdown for almost ev
 ## Features
 
 - GitHub-Flavored Markdown, syntax highlighting, and Mermaid diagrams
-- Local images embedded in the browser output
+- Images and videos embedded in the browser output
 - Light and dark mode
 - Slide overview for quickly navigating longer decks
 - Fullscreen viewing and presenting
@@ -46,7 +46,7 @@ Tools that support direct skill imports can download the canonical [`SKILL.md`](
 1. Give your agent the context and ask it to structure an idea, plan, architecture, evaluation, or other piece of work in Markdown.
 2. Ask it to run the file with md-present so you can explore the result as a focused browser view.
 3. Review the structure and content, then give the agent concrete feedback.
-4. Let the agent revise and validate the Markdown. The browser reloads whenever the file or a local image changes.
+4. Let the agent revise and validate the Markdown. The browser reloads whenever the file or local media changes.
 5. Keep using the Markdown as a working artifact, share it through version control, or open the browser view in fullscreen when you want to present it.
 
 ## Use
@@ -70,7 +70,7 @@ Hello, world.
 - No setup
 ```
 
-The structured view opens in your browser and reloads when the Markdown file or a local image changes. Relative image paths are resolved from the Markdown file's folder.
+The structured view opens in your browser and reloads when the Markdown file or local media changes. Relative media paths are resolved from the Markdown file's folder.
 Use `md-present --no-open plan.md` to start without opening a browser. Press Ctrl+C in the terminal to stop the process.
 
 ## Controls

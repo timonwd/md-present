@@ -26,6 +26,7 @@ func newMarkdownRenderer() goldmark.Markdown {
 			extension.Strikethrough,
 			extension.TaskList,
 			syntaxHighlighting,
+			videoRendering,
 		),
 	)
 }
@@ -102,7 +103,7 @@ func renderSlides(source []byte, deckDirectory string) ([]template.HTML, error) 
 	for _, slide := range markdownSlides {
 		slideSource := []byte(slide)
 		document := renderer.Parser().Parse(text.NewReader(slideSource))
-		if err := embedLocalImages(document, deckDirectory); err != nil {
+		if err := embedLocalMedia(document, deckDirectory); err != nil {
 			return nil, err
 		}
 		var output bytes.Buffer
@@ -115,7 +116,7 @@ func renderSlides(source []byte, deckDirectory string) ([]template.HTML, error) 
 	return rendered, nil
 }
 
-func embedLocalImages(document ast.Node, deckDirectory string) error {
+func embedLocalMedia(document ast.Node, deckDirectory string) error {
 	return ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
 		image, ok := node.(*ast.Image)
 		if !entering || !ok {
@@ -142,6 +143,9 @@ func embedLocalImages(document ast.Node, deckDirectory string) error {
 			contentType = http.DetectContentType(data)
 		}
 		image.Destination = []byte("data:" + contentType + ";base64," + base64.StdEncoding.EncodeToString(data))
+		if strings.HasPrefix(contentType, "video/") {
+			image.SetAttributeString("md-present-embedded-video", true)
+		}
 		return ast.WalkContinue, nil
 	})
 }

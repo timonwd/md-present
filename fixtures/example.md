@@ -98,6 +98,14 @@ Relative images are resolved beside the Markdown file and embedded into the gene
 
 ---
 
+## Videos use the same Markdown syntax
+
+![Remote sample video](https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4 "A remote sample video")
+
+Use `![Description](assets/demo.mp4)` for a local embedded video, or an HTTPS URL for a remote video.
+
+---
+
 ## Built for presenting
 
 | Action | Keys |
