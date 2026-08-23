@@ -55,7 +55,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		}
 	}
 
-	slides, err := renderSlides(source, filepath.Dir(path))
+	slides, err := renderSlidesWithWarnings(source, filepath.Dir(path), stderr)
 	if err != nil {
 		fmt.Fprintf(stderr, "md-present: render presentation: %v\n", err)
 		return 1

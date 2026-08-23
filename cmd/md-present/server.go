@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"embed"
 	"encoding/json"
 	"errors"
@@ -47,6 +48,11 @@ type presentationState struct {
 	slides      []template.HTML
 	revision    uint64
 	subscribers map[chan uint64]struct{}
+}
+
+type presentationWatcher struct {
+	markdownPath string
+	fingerprint  [sha256.Size]byte
 }
 
 type overflowReport struct {
@@ -305,7 +311,7 @@ func servePresentation(markdownPath string, slides []template.HTML, noOpen bool,
 	go func() {
 		serverErrors <- server.Serve(listener)
 	}()
-	go watchPresentation(ctx, markdownPath, presentation, liveReloadPoll)
+	go watchPresentation(ctx, newPresentationWatcher(markdownPath), presentation, liveReloadPoll, stderr)
 
 	url := "http://" + listener.Addr().String() + "/"
 	fmt.Fprintln(stdout, url)
@@ -334,13 +340,54 @@ func servePresentation(markdownPath string, slides []template.HTML, noOpen bool,
 	}
 }
 
-func watchPresentation(ctx context.Context, markdownPath string, presentation *presentationState, interval time.Duration) {
+func newPresentationWatcher(markdownPath string) *presentationWatcher {
+	watcher := &presentationWatcher{markdownPath: markdownPath}
+	if fingerprint, err := presentationInputFingerprint(markdownPath); err == nil {
+		watcher.fingerprint = fingerprint
+	}
+	return watcher
+}
+
+func (w *presentationWatcher) changed() bool {
+	fingerprint, err := presentationInputFingerprint(w.markdownPath)
+	if err != nil || fingerprint == w.fingerprint {
+		return false
+	}
+	w.fingerprint = fingerprint
+	return true
+}
+
+func presentationInputFingerprint(markdownPath string) ([sha256.Size]byte, error) {
+	source, err := os.ReadFile(markdownPath)
+	if err != nil {
+		return [sha256.Size]byte{}, err
+	}
+
+	hash := sha256.New()
+	_, _ = hash.Write(source)
+	for _, path := range localMediaPaths(source, filepath.Dir(markdownPath)) {
+		_, _ = fmt.Fprintf(hash, "\x00%s\x00", path)
+		info, err := os.Stat(path)
+		if err != nil {
+			_, _ = fmt.Fprintf(hash, "unavailable:%v", err)
+			continue
+		}
+		_, _ = fmt.Fprintf(hash, "%d:%d", info.Size(), info.ModTime().UnixNano())
+	}
+	var fingerprint [sha256.Size]byte
+	copy(fingerprint[:], hash.Sum(nil))
+	return fingerprint, nil
+}
+
+func watchPresentation(ctx context.Context, watcher *presentationWatcher, presentation *presentationState, interval time.Duration, stderr io.Writer) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
-			_ = refreshPresentation(markdownPath, presentation)
+			if watcher.changed() {
+				_ = refreshPresentationWithWarnings(watcher.markdownPath, presentation, stderr)
+			}
 		case <-ctx.Done():
 			return
 		}
@@ -348,11 +395,15 @@ func watchPresentation(ctx context.Context, markdownPath string, presentation *p
 }
 
 func refreshPresentation(markdownPath string, presentation *presentationState) error {
+	return refreshPresentationWithWarnings(markdownPath, presentation, nil)
+}
+
+func refreshPresentationWithWarnings(markdownPath string, presentation *presentationState, warnings io.Writer) error {
 	source, err := os.ReadFile(markdownPath)
 	if err != nil {
 		return err
 	}
-	slides, err := renderSlides(source, filepath.Dir(markdownPath))
+	slides, err := renderSlidesWithWarnings(source, filepath.Dir(markdownPath), warnings)
 	if err != nil {
 		return err
 	}

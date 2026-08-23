@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"slices"
@@ -250,9 +251,20 @@ func TestRenderSlidesRejectsUntrustedDataVideo(t *testing.T) {
 	}
 }
 
-func TestRenderSlidesReportsMissingRelativeImage(t *testing.T) {
-	_, err := renderSlides([]byte("![Missing](missing.png)"), t.TempDir())
-	if err == nil || !strings.Contains(err.Error(), `read image "missing.png"`) {
-		t.Fatalf("missing image error = %v", err)
+func TestRenderSlidesSkipsMissingRelativeImage(t *testing.T) {
+	var warnings bytes.Buffer
+	slides, err := renderSlidesWithWarnings([]byte("# Available\n\n![Missing](missing.png)\n\nStill rendered."), t.TempDir(), &warnings)
+	if err != nil {
+		t.Fatalf("renderSlides() error: %v", err)
+	}
+	html := string(slides[0])
+	if strings.Contains(html, "missing.png") {
+		t.Fatalf("rendered HTML contains missing image reference: %s", html)
+	}
+	if !strings.Contains(html, "Still rendered.") {
+		t.Fatalf("rendered HTML omitted remaining slide content: %s", html)
+	}
+	if warning := warnings.String(); !strings.Contains(warning, `md-present: warning: skip local media "missing.png"`) {
+		t.Fatalf("missing media warning = %q", warning)
 	}
 }

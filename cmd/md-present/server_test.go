@@ -275,6 +275,32 @@ func TestRefreshPresentationDetectsLocalImageChanges(t *testing.T) {
 	}
 }
 
+func TestPresentationWatcherDetectsOnlyInputChanges(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "slides.md")
+	imagePath := filepath.Join(directory, "image.png")
+	if err := os.WriteFile(path, []byte("![Image](image.png)"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(imagePath, []byte("before"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	watcher := newPresentationWatcher(path)
+	if watcher.changed() {
+		t.Fatal("unchanged presentation input triggered a refresh")
+	}
+	if err := os.WriteFile(imagePath, []byte("after!"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if !watcher.changed() {
+		t.Fatal("changed local image did not trigger a refresh")
+	}
+	if watcher.changed() {
+		t.Fatal("unchanged local image triggered a second refresh")
+	}
+}
+
 func TestTabTrackerShutsDownAfterLastDisconnect(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
