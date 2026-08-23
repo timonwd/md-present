@@ -9,7 +9,7 @@ md-present is built to be agent-first. Agents already use Markdown for almost ev
 ## Features
 
 - GitHub-Flavored Markdown, syntax highlighting, and Mermaid diagrams
-- Images and videos embedded in the browser output
+- Local images and videos embedded in the browser output, with remote HTTP(S) media displayed
 - Light and dark mode
 - Slide overview for quickly navigating longer decks
 - Fullscreen viewing and presenting
@@ -70,7 +70,7 @@ Hello, world.
 - No setup
 ```
 
-The structured view opens in your browser and reloads when the Markdown file or local media changes. Relative media paths are resolved from the Markdown file's folder.
+The structured view opens in your browser and reloads when the Markdown file or local media changes. Relative media paths are resolved from the Markdown file's folder and embedded in the output. Remote HTTP(S) image and video URLs are loaded directly by your browser.
 Use `md-present --no-open plan.md` to start without opening a browser. Press Ctrl+C in the terminal to stop the process.
 
 ## Controls

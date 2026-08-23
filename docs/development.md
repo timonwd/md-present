@@ -4,7 +4,7 @@ Run all commands from the repository root.
 
 ## Build from source
 
-Go 1.25, Node.js 24, and pnpm 11 are required.
+Go 1.25.13, Node.js 24, and pnpm 11 are required.
 
 Build the current checkout for local development:
 
@@ -22,8 +22,11 @@ Git. Release binaries embed them, so Homebrew users do not need Node.js or pnpm.
 ```sh
 pnpm --dir cmd/md-present/web install --frozen-lockfile --ignore-scripts
 pnpm --dir cmd/md-present/web run assets
+pnpm --dir cmd/md-present/web audit --audit-level high
 gofmt -w ./cmd/md-present/*.go
+go mod verify
 go vet ./...
+go tool govulncheck ./...
 go test ./...
 go build ./...
 ```
