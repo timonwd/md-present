@@ -2,95 +2,79 @@
 
 # md-present
 
-`md-present` turns one Markdown file into a clean, local browser presentation. The installed CLI has an embedded interface: no account, configuration, frontend toolchain, or network dependency is required at runtime.
+Turn a Markdown file into a clean, local browser presentation. Everything runs on your machine—no account, configuration, or internet connection required.
+
+## Features
+
+- GitHub-Flavored Markdown, syntax highlighting, and Mermaid diagrams
+- Local images embedded in the presentation
+- Light and dark mode
+- Fullscreen presentation
 
 ## Install
 
-md-present supports Apple silicon Macs (arm64) only.
-
-### Homebrew
-
-Install the latest release from the md-present tap:
+Requires an Apple silicon Mac.
 
 ```sh
 brew tap timonwd/md-present https://github.com/timonwd/md-present
 brew install --cask md-present
 ```
 
-Upgrade it later with:
+## Use
 
 ```sh
-brew upgrade --cask md-present
+md-present slides.md
 ```
 
-## Usage
+Add `---` on its own line to start a new slide:
 
-```sh
-md-present [--no-open] <markdown-file>
+```md
+# First slide
+
+Hello, world.
+
+---
+
+## Second slide
+
+- Simple Markdown
+- No setup
 ```
 
-Slides are separated by a line containing only `---` (surrounding whitespace is allowed). Separators inside fenced code blocks are preserved as code.
-Relative image paths are resolved from the Markdown file's directory and embedded in the generated presentation.
-GitHub-Flavored Markdown tables, strikethrough, task lists, and automatic links are supported. Fenced code blocks with a recognized language are highlighted locally. A fenced `mermaid` block renders as a diagram using the embedded Mermaid runtime. Raw HTML remains disabled for safety.
-
-```sh
-md-present ./fixtures/example.md
-md-present --no-open ./fixtures/example.md
-```
-
-The [`fixtures`](fixtures) directory also contains [`overflow.md`](fixtures/overflow.md), a deliberately oversized deck for checking overflow warnings, the collapsed warning indicator, scrolling, and keyboard navigation.
-
-The server listens only on a random `127.0.0.1` port. Without `--no-open`, the default browser opens automatically. Saving the Markdown file or a referenced local image reloads connected presentation tabs and keeps the active slide selected. Invalid intermediate saves leave the last valid presentation visible. Closing the last connected presentation tab normally stops the server after a short grace period; browser crashes and forced termination may prevent a final disconnect from being observed. Use Ctrl+C to stop it explicitly.
-
-After the browser lays out the deck, a temporary warning identifies slides whose content exceeds the regular 16:9 slide area, and the same warning is written to the terminal. Oversized slides become scrollable while normal slides keep their fixed layout. On an oversized slide, the browser warning collapses to a small indicator that can expand it again. Clicking the expanded warning dismisses it early, collapsing it on an oversized slide or hiding it on a normal slide. The result depends on the browser's current size. With `--no-open`, overflow can therefore be reported only after the presentation URL is opened in a browser.
+The presentation opens in your browser and reloads when the Markdown file or a local image changes. Relative image paths are resolved from the Markdown file's folder.
+Use `md-present --no-open slides.md` to start without opening a browser. Press Ctrl+C in the terminal to stop the presentation.
 
 ## Controls
 
-| Action | Keys |
+| Action | Key |
 | --- | --- |
-| Next slide | Right; Down, Page Down, or Space at the end of an oversized slide |
-| Previous slide | Left; Up or Page Up at the start of an oversized slide |
-| Scroll oversized slide | Mouse wheel, trackpad, touch, Down, Up, Page Down, Page Up, Space |
-| First slide | Home |
-| Last slide | End |
+| Next slide | Right, Down, Page Down, or Space |
+| Previous slide | Left, Up, or Page Up |
+| First / last slide | Home / End |
+| Fullscreen | Button in the upper-right corner |
 
-Use the button in the upper-right corner to enter or exit fullscreen. The active slide is stored in the URL hash. Printing uses one fixed landscape page per slide; content that requires scrolling while presenting may therefore be clipped when printed.
+Oversized slides scroll before navigation continues. Their content may be clipped when printed.
 
-## MVP limitations
+## Agent plugin
 
-This first release intentionally has no custom themes, presenter notes, transitions, or math rendering. Raw HTML in Markdown is not rendered. User-supplied remote image URLs may require network access in the browser; the presentation UI and Mermaid rendering have no runtime network dependency.
-
-## AI agent skill
-
-This repository is distributed as both a Codex and Claude Code plugin. Both use the same plugin package and its single [`SKILL.md`](plugins/md-present/skills/md-present/SKILL.md).
-
-### Codex
-
-Add the repository marketplace, then install the plugin:
+Install the shared skill for Codex:
 
 ```sh
 codex plugin marketplace add timonwd/md-present
 codex plugin add md-present@md-present
 ```
 
-Start a new Codex task after installation so the skill is discovered.
-
-### Claude Code
-
-Run these commands inside an interactive Claude Code session:
+For Claude Code, run the equivalent commands inside a session:
 
 ```text
 /plugin marketplace add timonwd/md-present
 /plugin install md-present@md-present
 ```
 
-Run `/reload-plugins` if Claude Code prompts you to activate the newly installed plugin. The skill is available as `/md-present:md-present` and can also be selected automatically when relevant.
-
 ### Direct Markdown import
 
-Tools that import skills directly from a Markdown file can download the canonical [`SKILL.md`](plugins/md-present/skills/md-present/SKILL.md).
+Tools that support direct skill imports can download the canonical [`SKILL.md`](plugins/md-present/skills/md-present/SKILL.md).
 
 ## License
 
-`md-present` is available under the [MIT License](LICENSE). Third-party
-components and their licenses are listed in [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES).
+[MIT](LICENSE). Third-party licenses are listed in [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES).
