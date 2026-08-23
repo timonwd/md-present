@@ -1,19 +1,21 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 var version = "0.2.3"
 
 func main() {
-	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
+	os.Exit(run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
 }
 
-func run(args []string, stdout, stderr io.Writer) int {
+func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	config, action, err := parseArgs(args)
 	if err != nil {
 		fmt.Fprintf(stderr, "md-present: %v\n", err)
@@ -41,6 +43,17 @@ func run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "md-present: read %q: %v\n", config.markdownFile, err)
 		return 1
 	}
+	if references := externalMediaReferences(source, filepath.Dir(path)); len(references) > 0 && !config.allowExternalMedia {
+		trusted, err := confirmExternalMedia(stdin, stderr, path, references)
+		if err != nil {
+			fmt.Fprintf(stderr, "md-present: confirm external media: %v\n", err)
+			return 1
+		}
+		if !trusted {
+			fmt.Fprintln(stderr, "md-present: external media was not trusted; rerun with --allow-external-media to opt in")
+			return 1
+		}
+	}
 
 	slides, err := renderSlides(source, filepath.Dir(path))
 	if err != nil {
@@ -56,12 +69,32 @@ func run(args []string, stdout, stderr io.Writer) int {
 }
 
 func printHelp(w io.Writer) {
-	fmt.Fprintln(w, `Usage: md-present [--no-open] <markdown-file>
+	fmt.Fprintln(w, `Usage: md-present [--no-open] [--allow-external-media] <markdown-file>
 
 Render a Markdown file as a local browser presentation.
 
 Options:
-  --no-open  Start the server without opening a browser
-  -h, --help Show this help
-  --version  Show the version`)
+  --no-open               Start the server without opening a browser
+  --allow-external-media  Trust remote and outside-deck media without prompting
+  -h, --help              Show this help
+  --version               Show the version`)
+}
+
+func confirmExternalMedia(input io.Reader, output io.Writer, markdownPath string, references []string) (bool, error) {
+	fmt.Fprintf(output, "md-present: %q includes external media:\n", markdownPath)
+	for _, reference := range references {
+		fmt.Fprintf(output, "  - %s\n", reference)
+	}
+	fmt.Fprint(output, "Trust this file and allow its external media? [y/N] ")
+
+	scanner := bufio.NewScanner(input)
+	if !scanner.Scan() {
+		return false, scanner.Err()
+	}
+	switch strings.ToLower(strings.TrimSpace(scanner.Text())) {
+	case "y", "yes":
+		return true, nil
+	default:
+		return false, nil
+	}
 }

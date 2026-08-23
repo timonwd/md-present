@@ -116,6 +116,60 @@ func renderSlides(source []byte, deckDirectory string) ([]template.HTML, error) 
 	return rendered, nil
 }
 
+func externalMediaReferences(source []byte, deckDirectory string) []string {
+	document := newMarkdownRenderer().Parser().Parse(text.NewReader(source))
+	seen := make(map[string]struct{})
+	var references []string
+	_ = ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
+		image, ok := node.(*ast.Image)
+		if !entering || !ok {
+			return ast.WalkContinue, nil
+		}
+		destination := string(image.Destination)
+		if !isExternalMediaDestination(destination, deckDirectory) {
+			return ast.WalkContinue, nil
+		}
+		if _, exists := seen[destination]; exists {
+			return ast.WalkContinue, nil
+		}
+		seen[destination] = struct{}{}
+		references = append(references, destination)
+		return ast.WalkContinue, nil
+	})
+	return references
+}
+
+func isExternalMediaDestination(destination, deckDirectory string) bool {
+	parsed, err := url.Parse(destination)
+	if err != nil || parsed.Scheme == "data" {
+		return false
+	}
+	if parsed.Scheme == "http" || parsed.Scheme == "https" || parsed.Scheme == "file" || parsed.Host != "" {
+		return true
+	}
+	if parsed.Scheme != "" {
+		return false
+	}
+	path, err := url.PathUnescape(parsed.Path)
+	if err != nil {
+		return false
+	}
+	if filepath.IsAbs(path) {
+		return true
+	}
+	return pathIsOutsideDirectory(filepath.Join(deckDirectory, filepath.FromSlash(path)), deckDirectory)
+}
+
+func pathIsOutsideDirectory(path, directory string) bool {
+	resolvedPath, pathErr := filepath.EvalSymlinks(path)
+	resolvedDirectory, directoryErr := filepath.EvalSymlinks(directory)
+	if pathErr == nil && directoryErr == nil {
+		path, directory = resolvedPath, resolvedDirectory
+	}
+	relative, err := filepath.Rel(directory, path)
+	return err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator))
+}
+
 func embedLocalMedia(document ast.Node, deckDirectory string) error {
 	return ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
 		image, ok := node.(*ast.Image)
@@ -124,7 +178,14 @@ func embedLocalMedia(document ast.Node, deckDirectory string) error {
 		}
 		destination := string(image.Destination)
 		parsed, err := url.Parse(destination)
-		if err != nil || parsed.Scheme != "" || parsed.Host != "" || filepath.IsAbs(destination) {
+		if err != nil {
+			return ast.WalkContinue, nil
+		}
+		if parsed.Scheme == "file" {
+			if parsed.Host != "" && parsed.Host != "localhost" {
+				return ast.WalkStop, fmt.Errorf("read image %q: file URL host is not supported", destination)
+			}
+		} else if parsed.Scheme != "" || parsed.Host != "" {
 			return ast.WalkContinue, nil
 		}
 		path, err := url.PathUnescape(parsed.Path)
@@ -134,7 +195,11 @@ func embedLocalMedia(document ast.Node, deckDirectory string) error {
 		if path == "" {
 			return ast.WalkContinue, nil
 		}
-		data, err := os.ReadFile(filepath.Join(deckDirectory, filepath.FromSlash(path)))
+		path = filepath.FromSlash(path)
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(deckDirectory, path)
+		}
+		data, err := os.ReadFile(path)
 		if err != nil {
 			return ast.WalkStop, fmt.Errorf("read image %q: %w", destination, err)
 		}

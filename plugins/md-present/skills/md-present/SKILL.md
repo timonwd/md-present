@@ -12,8 +12,9 @@ Use standard Markdown and GitHub-Flavored Markdown tables, strikethrough, task l
 1. Keep each slide focused on one idea and sized for a 16:9 stage. Shorten content that would overflow when practical. The browser warns about oversized slides and makes them scrollable while presenting, but printing still uses a fixed landscape page and may clip overflow.
 2. Separate slides with a line containing only `---`; surrounding whitespace is allowed. Do not use that line as a decorative rule.
 3. Place local images or videos beside the deck or in a relative subdirectory. md-present resolves relative paths from the deck's directory and embeds their contents in the generated page. Use `![Description](clip.mp4)` for video.
-4. Prefer local media when the presentation must work offline. Remote image and video URLs remain network-dependent.
-5. Do not rely on raw HTML for layout or behavior; md-present omits it for safety.
+4. Prefer local media in the deck directory when the presentation must work offline. Remote media remains network-dependent, and absolute paths or any media outside the deck directory require a trust confirmation before the deck opens.
+5. Do not pass `--allow-external-media` unless the user has explicitly approved the listed remote or outside-deck media. That flag bypasses the trust prompt, so it is appropriate only for intentional, reviewed input or non-interactive automation.
+6. Do not rely on raw HTML for layout or behavior; md-present omits it for safety.
 
 Empty content before, after, or between separators does not create a slide. A `---` line inside a fenced code block stays in that code block, including fences nested in other Markdown structures.
 
@@ -34,12 +35,14 @@ Fenced Mermaid diagrams and recognized code languages render locally from embedd
 Use:
 
 ```text
-md-present [--no-open] <deck.md>
+md-present [--no-open] [--allow-external-media] <deck.md>
 ```
 
 Run `md-present --version` first when availability is uncertain. In an md-present source checkout, run `pnpm --dir cmd/md-present/web install --frozen-lockfile --ignore-scripts`, `pnpm --dir cmd/md-present/web run assets`, then `go build -o md-present ./cmd/md-present`.
 
 Use the default command for an interactive presentation. It prints one loopback URL and opens the browser. Use `--no-open` for automated validation; it prints the URL without launching a browser and continues running until signaled.
+
+When a deck includes remote, absolute-path, or outside-deck media, md-present lists the references and asks whether to trust the file before starting. Answer the prompt only when the user has approved those references. For reviewed non-interactive use, pass `--allow-external-media`; otherwise leave the prompt in place.
 
 The server binds only to `127.0.0.1` on a free port. Stop it with Ctrl+C or SIGTERM. Closing the last connected presentation tab normally stops it after a short grace period, but treat that behavior as best-effort.
 
@@ -50,12 +53,13 @@ After a browser lays out the deck, md-present temporarily warns about slides tha
 ## Validate a deck
 
 1. Confirm every relative image or video exists relative to the deck file.
-2. Start the CLI with `--no-open` as a managed background process and wait for its single URL line.
-3. Request that URL and verify a successful response, the expected slide count, and representative slide content.
-4. When browser control is available, check the first and last slides, content fit, local media, and the absence of console errors.
-5. Treat an overflow warning as a reason to simplify or split a slide unless scrolling is intentional. For intentional overflow, verify the browser warning and terminal diagnostic, the collapsed indicator, and scrolling to all content. In a source checkout, use `fixtures/overflow.md` for this behavior.
-6. Verify navigation when interaction changed: Right always advances; Left always goes back; Down, Page Down, and Space scroll an oversized slide before advancing at its bottom; Up and Page Up scroll it before going back at its top; Home and End jump. Confirm navigation stays bounded on the first and last slides.
-7. Confirm the active slide uses a `#N` URL hash and an invalid hash normalizes to slide 1.
-8. Stop the process cleanly after automated checks.
+2. Review remote, absolute-path, and outside-deck media with the user. Keep the interactive trust prompt, or use `--allow-external-media` only after explicit user approval.
+3. Start the CLI with `--no-open` as a managed background process and wait for its single URL line.
+4. Request that URL and verify a successful response, the expected slide count, and representative slide content.
+5. When browser control is available, check the first and last slides, content fit, local media, and the absence of console errors.
+6. Treat an overflow warning as a reason to simplify or split a slide unless scrolling is intentional. For intentional overflow, verify the browser warning and terminal diagnostic, the collapsed indicator, and scrolling to all content. In a source checkout, use `fixtures/overflow.md` for this behavior.
+7. Verify navigation when interaction changed: Right always advances; Left always goes back; Down, Page Down, and Space scroll an oversized slide before advancing at its bottom; Up and Page Up scroll it before going back at its top; Home and End jump. Confirm navigation stays bounded on the first and last slides.
+8. Confirm the active slide uses a `#N` URL hash and an invalid hash normalizes to slide 1.
+9. Stop the process cleanly after automated checks.
 
 Printing should produce one slide per landscape page. The browser shows a subtle current/total counter during presentation but hides it for print.
