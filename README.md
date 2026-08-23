@@ -2,14 +2,16 @@
 
 # md-present
 
-Turn a Markdown file into a clean, local browser presentation. Everything runs on your machine—no account, configuration, or internet connection required.
+Turn a Markdown file into a clean, structured browser view. Everything runs on your machine—no account, configuration, or internet connection required.
+
+md-present is built to be agent-first. Agents already use Markdown for almost everything, so md-present gives them a way to clearly show ideas, plans, architectures, evaluations, and other structured work without forcing them into a separate format. The Markdown remains the source: easy to create, inspect, revise, and version, with a focused visual view whenever you need it.
 
 ## Features
 
 - GitHub-Flavored Markdown, syntax highlighting, and Mermaid diagrams
-- Local images embedded in the presentation
+- Local images embedded in the browser output
 - Light and dark mode
-- Fullscreen presentation
+- Fullscreen viewing and presenting
 
 ## Install
 
@@ -20,10 +22,36 @@ brew tap timonwd/md-present https://github.com/timonwd/md-present
 brew install --cask md-present
 ```
 
+### Agent plugin
+
+Install the shared skill for Codex:
+
+```sh
+codex plugin marketplace add timonwd/md-present
+codex plugin add md-present@md-present
+```
+
+For Claude Code, run the equivalent commands inside a session:
+
+```text
+/plugin marketplace add timonwd/md-present
+/plugin install md-present@md-present
+```
+
+Tools that support direct skill imports can download the canonical [`SKILL.md`](plugins/md-present/skills/md-present/SKILL.md).
+
+## Ideal workflow
+
+1. Give your agent the context and ask it to structure an idea, plan, architecture, evaluation, or other piece of work in Markdown.
+2. Ask it to run the file with md-present so you can explore the result as a focused browser view.
+3. Review the structure and content, then give the agent concrete feedback.
+4. Let the agent revise and validate the Markdown. The browser reloads whenever the file or a local image changes.
+5. Keep using the Markdown as a working artifact, share it through version control, or open the browser view in fullscreen when you want to present it.
+
 ## Use
 
 ```sh
-md-present slides.md
+md-present plan.md
 ```
 
 Add `---` on its own line to start a new slide:
@@ -41,8 +69,8 @@ Hello, world.
 - No setup
 ```
 
-The presentation opens in your browser and reloads when the Markdown file or a local image changes. Relative image paths are resolved from the Markdown file's folder.
-Use `md-present --no-open slides.md` to start without opening a browser. Press Ctrl+C in the terminal to stop the presentation.
+The structured view opens in your browser and reloads when the Markdown file or a local image changes. Relative image paths are resolved from the Markdown file's folder.
+Use `md-present --no-open plan.md` to start without opening a browser. Press Ctrl+C in the terminal to stop the process.
 
 ## Controls
 
@@ -54,26 +82,6 @@ Use `md-present --no-open slides.md` to start without opening a browser. Press C
 | Fullscreen | Button in the upper-right corner |
 
 Oversized slides scroll before navigation continues. Their content may be clipped when printed.
-
-## Agent plugin
-
-Install the shared skill for Codex:
-
-```sh
-codex plugin marketplace add timonwd/md-present
-codex plugin add md-present@md-present
-```
-
-For Claude Code, run the equivalent commands inside a session:
-
-```text
-/plugin marketplace add timonwd/md-present
-/plugin install md-present@md-present
-```
-
-### Direct Markdown import
-
-Tools that support direct skill imports can download the canonical [`SKILL.md`](plugins/md-present/skills/md-present/SKILL.md).
 
 ## License
 
