@@ -45,6 +45,12 @@ example each show an in-slide alert with their escaped source, and no diagram
 remains busy. This is a browser smoke test because Mermaid rendering occurs in
 the embedded browser runtime rather than the Go server.
 
+For media trust changes, run `md-present --no-open fixtures/external-media/deck.md`.
+Confirm the prompt lists the outside-deck local image and both remote URLs; use
+`--allow-external-media` only to exercise the explicit opt-in path. The
+outside-deck image must be embedded, while the remote image and video remain
+browser-loaded URLs.
+
 ## Agent plugin
 
 Codex and Claude Code share the plugin package under `plugins/md-present/`.
