@@ -168,6 +168,46 @@ func TestRenderSlidesEmbedsRelativeImages(t *testing.T) {
 	}
 }
 
+func TestRenderSlidesEmbedsLocalVideoUsingImageSyntax(t *testing.T) {
+	directory := t.TempDir()
+	videoPath := filepath.Join(directory, "clip.mp4")
+	if err := os.WriteFile(videoPath, []byte("not a real video"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	slides, err := renderSlides([]byte("![Local clip](clip.mp4 \"A local video\")"), directory)
+	if err != nil {
+		t.Fatalf("renderSlides() error: %v", err)
+	}
+	html := string(slides[0])
+	for _, expected := range []string{`<video controls preload="metadata" src="data:video/mp4;base64,`, `aria-label="Local clip"`, `title="A local video"`} {
+		if !strings.Contains(html, expected) {
+			t.Errorf("rendered local video does not contain %q:\n%s", expected, html)
+		}
+	}
+}
+
+func TestRenderSlidesKeepsRemoteVideoRemote(t *testing.T) {
+	slides, err := renderSlides([]byte("![Remote clip](https://example.com/clip.webm)"), t.TempDir())
+	if err != nil {
+		t.Fatalf("renderSlides() error: %v", err)
+	}
+	html := string(slides[0])
+	if !strings.Contains(html, `<video controls preload="metadata" src="https://example.com/clip.webm" aria-label="Remote clip"></video>`) {
+		t.Fatalf("rendered remote video = %s", html)
+	}
+}
+
+func TestRenderSlidesRejectsUntrustedDataVideo(t *testing.T) {
+	slides, err := renderSlides([]byte("![Unsafe](data:video/mp4;base64,AAAA)"), t.TempDir())
+	if err != nil {
+		t.Fatalf("renderSlides() error: %v", err)
+	}
+	if html := string(slides[0]); strings.Contains(html, "data:video/") {
+		t.Fatalf("rendered untrusted data video: %s", html)
+	}
+}
+
 func TestRenderSlidesReportsMissingRelativeImage(t *testing.T) {
 	_, err := renderSlides([]byte("![Missing](missing.png)"), t.TempDir())
 	if err == nil || !strings.Contains(err.Error(), `read image "missing.png"`) {

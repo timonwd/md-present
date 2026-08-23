@@ -91,7 +91,8 @@ body.is-overview { overflow: auto; }
 .deck.is-overview h1 { font-size: 5.3cqw; }
 .deck.is-overview h2 { font-size: 3.8cqw; }
 .deck.is-overview h3 { font-size: 2.4cqw; }
-.deck.is-overview img { max-height: 48cqh; }
+.deck.is-overview img,
+.deck.is-overview video { max-height: 48cqh; }
 .deck.is-overview .mermaid-diagram { max-height: 52cqh; }
 .deck.is-overview .mermaid-diagram__image { max-height: 50cqh; }
 .is-overview .progress,
@@ -205,7 +206,8 @@ pre {
 }
 
 pre code { padding: 0; background: transparent; }
-img { display: block; max-width: 100%; max-height: 48vh; max-height: 48cqh; object-fit: contain; }
+img,
+video { display: block; max-width: 100%; max-height: 48vh; max-height: 48cqh; object-fit: contain; }
 
 .chroma {
   color: var(--syntax-ink);

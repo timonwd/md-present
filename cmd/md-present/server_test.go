@@ -49,6 +49,9 @@ A --&gt; B
 	if !strings.Contains(csp, "script-src 'self'") || strings.Contains(csp, "'unsafe-inline'") || strings.Contains(csp, "'unsafe-eval'") {
 		t.Errorf("GET / has unsafe script policy: %s", csp)
 	}
+	if !strings.Contains(csp, "media-src 'self' data: https: http:") {
+		t.Errorf("GET / does not permit local and remote video: %s", csp)
+	}
 	for _, expected := range []string{`class="language-mermaid"`, `/assets/mermaid.min.js`, `/assets/app.js`} {
 		if !strings.Contains(response.Body.String(), expected) {
 			t.Errorf("GET / omitted %q", expected)
@@ -64,7 +67,7 @@ A --&gt; B
 		}
 		if asset == "app.js" {
 			body := assetResponse.Body.String()
-			for _, expected := range []string{"requestFullscreen", "exitFullscreen", `securityLevel: "strict"`, `role", "alert"`, "language-mermaid", "overflowWarningDuration", "scrollBy", "toggleOverview", `role", "grid"`, `role", "gridcell"`} {
+			for _, expected := range []string{"requestFullscreen", "exitFullscreen", `securityLevel: "strict"`, `role", "alert"`, "language-mermaid", "overflowWarningDuration", "scrollBy", "toggleOverview", `role", "grid"`, `role", "gridcell"`, "isMediaControl", "video, audio"} {
 				if !strings.Contains(body, expected) {
 					t.Errorf("GET /assets/app.js omitted %q", expected)
 				}
