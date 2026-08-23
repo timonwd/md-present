@@ -40,20 +40,15 @@ jobs:
           ref: main
           token: ${{ steps.release-app-token.outputs.token }}
 
-      - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version: 24
-
       - name: Set version
         id: set-version
         env:
           REQUESTED_VERSION: ${{ inputs.version }}
         run: |
           if [[ -n "${REQUESTED_VERSION}" ]]; then
-            VERSION="$(node scripts/bump-version.mjs "${REQUESTED_VERSION}")"
+            VERSION="$(scripts/bump-version.sh "${REQUESTED_VERSION}")"
           else
-            VERSION="$(node scripts/bump-version.mjs)"
+            VERSION="$(scripts/bump-version.sh)"
           fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           if git diff --quiet; then
