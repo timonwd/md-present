@@ -11,8 +11,8 @@ second repository. The release workflow uses its normal `GITHUB_TOKEN` with
 installation token for the repository-scoped release GitHub App to upload
 release assets and commit generated changes to `main`. The app needs
 `contents: write`, must be installed on this repository, and must be an
-always-allowed bypass actor for the default-branch pull-request ruleset. Its App
-ID and private key are stored in the `RELEASE_APP_ID` and
+always-allowed bypass actor for the default-branch pull-request ruleset. Its
+Client ID and private key are stored in the `RELEASE_APP_CLIENT_ID` and
 `RELEASE_APP_PRIVATE_KEY` repository secrets.
 
 ## Publish a release
