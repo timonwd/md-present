@@ -63,6 +63,6 @@ jobs:
             plugins/md-present/.codex-plugin/plugin.json \
             plugins/md-present/.claude-plugin/plugin.json \
             .claude-plugin/marketplace.json
-          git commit -m "Prepare md-present ${VERSION} [skip ci]"
+          git commit -m "Prepare md-present ${VERSION}"
           git push origin HEAD:main
           echo "changed=true" >> "$GITHUB_OUTPUT"
