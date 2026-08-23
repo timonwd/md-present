@@ -16,8 +16,9 @@ const (
 )
 
 type cliConfig struct {
-	markdownFile string
-	noOpen       bool
+	markdownFile       string
+	noOpen             bool
+	allowExternalMedia bool
 }
 
 func parseArgs(args []string) (cliConfig, cliAction, error) {
@@ -34,6 +35,9 @@ func parseArgs(args []string) (cliConfig, cliAction, error) {
 				return cliConfig{}, actionVersion, nil
 			case "--no-open":
 				config.noOpen = true
+				continue
+			case "--allow-external-media":
+				config.allowExternalMedia = true
 				continue
 			case "--":
 				options = false

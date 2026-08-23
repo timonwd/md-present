@@ -209,6 +209,17 @@ pre code { padding: 0; background: transparent; }
 img,
 video { display: block; max-width: 100%; max-height: 48vh; max-height: 48cqh; object-fit: contain; }
 
+/* Let a video be the visual focus when it is the only content, with an optional title. */
+.slide__content:has(> p:only-child > video:only-child) > p,
+.slide__content:has(> :is(h1, h2, h3):first-child):has(> p:last-child > video:only-child):not(:has(> :not(h1, h2, h3, p))) > p {
+  max-width: 100%;
+}
+.slide__content:has(> p:only-child > video:only-child) video,
+.slide__content:has(> :is(h1, h2, h3):first-child):has(> p:last-child > video:only-child):not(:has(> :not(h1, h2, h3, p))) video {
+  max-height: 62vh;
+  max-height: 62cqh;
+}
+
 .chroma {
   color: var(--syntax-ink);
   background: var(--syntax-bg);

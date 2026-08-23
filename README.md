@@ -70,7 +70,7 @@ Hello, world.
 - No setup
 ```
 
-The structured view opens in your browser and reloads when the Markdown file or local media changes. Relative media paths are resolved from the Markdown file's folder and embedded in the output. Remote HTTP(S) image and video URLs are loaded directly by your browser.
+The structured view opens in your browser and reloads when the Markdown file or local media changes. Relative media paths are resolved from the Markdown file's folder; absolute local paths are also supported. Local media is embedded in the output, while remote HTTP(S) image and video URLs are loaded directly by your browser. Before a deck with remote media or local media outside its folder opens, md-present asks whether you trust it; use `--allow-external-media` to opt in without the prompt.
 Use `md-present --no-open plan.md` to start without opening a browser. Press Ctrl+C in the terminal to stop the process.
 
 ## Controls

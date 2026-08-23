@@ -58,7 +58,7 @@ A --&gt; B
 		}
 	}
 
-	for _, asset := range []string{"app.js", "mermaid.min.js", "mermaid.LICENSE.txt"} {
+	for _, asset := range []string{"app.js", "style.css", "mermaid.min.js", "mermaid.LICENSE.txt"} {
 		assetRequest := httptest.NewRequest(http.MethodGet, "/assets/"+asset, nil)
 		assetResponse := httptest.NewRecorder()
 		handler.ServeHTTP(assetResponse, assetRequest)
@@ -70,6 +70,13 @@ A --&gt; B
 			for _, expected := range []string{"requestFullscreen", "exitFullscreen", `securityLevel: "strict"`, `role", "alert"`, "language-mermaid", "overflowWarningDuration", "scrollBy", "toggleOverview", `role", "grid"`, `role", "gridcell"`, "isMediaControl", "video, audio"} {
 				if !strings.Contains(body, expected) {
 					t.Errorf("GET /assets/app.js omitted %q", expected)
+				}
+			}
+		} else if asset == "style.css" {
+			body := assetResponse.Body.String()
+			for _, expected := range []string{"video:only-child", "max-width: 100%", "max-height: 62cqh"} {
+				if !strings.Contains(body, expected) {
+					t.Errorf("GET /assets/style.css omitted %q", expected)
 				}
 			}
 		} else if asset == "mermaid.min.js" && !strings.Contains(assetResponse.Body.String(), `globalThis["mermaid"]`) {

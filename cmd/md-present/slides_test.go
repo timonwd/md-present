@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -152,6 +153,19 @@ func TestRenderSlidesRejectsEmptyDeck(t *testing.T) {
 	}
 }
 
+func TestExternalMediaReferences(t *testing.T) {
+	deckDirectory := filepath.Join(t.TempDir(), "deck")
+	source := []byte(`![Local](image.png)
+![Outside](../image.png)
+![Absolute](/private/image.png)
+![Remote](https://example.com/image.png)
+![Duplicate](https://example.com/image.png)
+![Embedded](data:image/png;base64,AAAA)`)
+	if got, want := externalMediaReferences(source, deckDirectory), []string{"../image.png", "/private/image.png", "https://example.com/image.png"}; !slices.Equal(got, want) {
+		t.Fatalf("externalMediaReferences() = %#v, want %#v", got, want)
+	}
+}
+
 func TestRenderSlidesEmbedsRelativeImages(t *testing.T) {
 	directory := t.TempDir()
 	imagePath := filepath.Join(directory, "pixel.png")
@@ -195,6 +209,34 @@ func TestRenderSlidesKeepsRemoteVideoRemote(t *testing.T) {
 	html := string(slides[0])
 	if !strings.Contains(html, `<video controls preload="metadata" src="https://example.com/clip.webm" aria-label="Remote clip"></video>`) {
 		t.Fatalf("rendered remote video = %s", html)
+	}
+}
+
+func TestRenderSlidesEmbedsAbsoluteLocalMediaPaths(t *testing.T) {
+	mediaDirectory := t.TempDir()
+	imagePath := filepath.Join(mediaDirectory, "absolute.png")
+	videoPath := filepath.Join(mediaDirectory, "absolute.mp4")
+	if err := os.WriteFile(imagePath, []byte("\x89PNG\r\n\x1a\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(videoPath, []byte("not a real video"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, test := range []struct {
+		source string
+		want   string
+	}{
+		{source: "![Absolute image](" + imagePath + ")", want: `src="data:image/png;base64,`},
+		{source: "![Absolute video](file://" + videoPath + ")", want: `<video controls preload="metadata" src="data:video/mp4;base64,`},
+	} {
+		slides, err := renderSlides([]byte(test.source), t.TempDir())
+		if err != nil {
+			t.Fatalf("renderSlides(%q) error: %v", test.source, err)
+		}
+		if html := string(slides[0]); !strings.Contains(html, test.want) {
+			t.Fatalf("rendered absolute media = %s", html)
+		}
 	}
 }
 
