@@ -2,14 +2,14 @@
 
 # md-present
 
-Turn a Markdown file into a clean, structured browser view. Everything runs on your machine—no account, configuration, or internet connection required.
+Turn a Markdown file into a clean, structured browser slide deck. Everything runs on your machine—no account, configuration, or internet connection required.
 
 md-present is built to be agent-first. Agents already use Markdown for almost everything, so md-present gives them a way to clearly show ideas, plans, architectures, evaluations, and other structured work without forcing them into a separate format. The Markdown remains the source: easy to create, inspect, revise, and version, with a focused visual view whenever you need it.
 
 ## Features
 
 - GitHub-Flavored Markdown, syntax highlighting, and Mermaid diagrams
-- Local images and videos embedded in the browser output, with remote HTTP(S) media displayed
+- Local images and videos embedded in the browser output, with remote HTTP(S) media loaded on demand
 - Light and dark mode
 - Slide overview for quickly navigating longer decks
 - Fullscreen viewing and presenting
@@ -70,12 +70,14 @@ Hello, world.
 - No setup
 ```
 
-The structured view opens in your browser and reloads when the Markdown file or local media changes. Relative media paths are resolved from the Markdown file's folder; absolute local paths are also supported. Local media is embedded in the output, while remote HTTP(S) image and video URLs are loaded directly by your browser. If a local media file is unavailable when a deck renders, md-present skips it and opens the remaining slides. An unterminated fenced code block remains code through the end of the document, as defined by Markdown; md-present reports this on stderr. Before a deck with remote media or local media outside its folder opens, md-present asks whether you trust it; use `--allow-external-media` to opt in without the prompt.
-Use `md-present --no-open plan.md` to start without opening a browser. Press Ctrl+C in the terminal to stop the process.
+The structured view opens in your browser and reloads when the Markdown file or local media changes.
+Before a deck with remote media or local media outside its folder opens, md-present asks whether you trust it; use `--allow-external-media` to opt in without the prompt.
+Use `md-present --no-open plan.md` to start without opening a browser.
+Press Ctrl+C in the terminal to stop the process.
 
 ### Mermaid diagrams
 
-Use a fenced `mermaid` block for diagrams. The bundled offline Mermaid runtime supports flowcharts, sequence, class, state, entity-relationship, timeline, mind map, and architecture diagrams. Other Mermaid diagram types may also render, but are not part of the compatibility baseline. Diagrams render as static SVG images using strict security; interactive callbacks and Mermaid `init` or `config` directives are not supported. Invalid or unsupported diagrams show an in-slide error with their source, without affecting other slides. For syntax and examples, see the [Mermaid documentation](https://mermaid.ai/open-source/intro/syntax-reference.html).
+Use a fenced `mermaid` block for diagrams. The bundled offline Mermaid runtime supports flowcharts, sequence, class, state, entity-relationship, timeline, mind map, and architecture diagrams. Other Mermaid diagram types may also render, but are not part of the compatibility baseline. For syntax and examples, see the [Mermaid documentation](https://mermaid.ai/open-source/intro/syntax-reference.html).
 
 ## Controls
 
