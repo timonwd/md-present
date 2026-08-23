@@ -190,6 +190,58 @@ func TestMermaidTypesFixtureHasBaselineAndErrorCases(t *testing.T) {
 	}
 }
 
+func TestExternalMediaFixtureCoversTrustBoundary(t *testing.T) {
+	fixturePath := filepath.Join("..", "..", "fixtures", "external-media", "deck.md")
+	source, err := os.ReadFile(fixturePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deckDirectory := filepath.Dir(fixturePath)
+
+	if got, want := externalMediaReferences(source, deckDirectory), []string{
+		"../assets/rendering-flow.png",
+		"https://example.com/md-present-remote-image.png",
+		"https://example.com/md-present-remote-video.mp4",
+	}; !slices.Equal(got, want) {
+		t.Fatalf("externalMediaReferences() = %#v, want %#v", got, want)
+	}
+
+	slides, err := renderSlides(source, deckDirectory)
+	if err != nil {
+		t.Fatalf("renderSlides() error: %v", err)
+	}
+	if len(slides) != 2 {
+		t.Fatalf("renderSlides() returned %d slides, want 2", len(slides))
+	}
+	if html := string(slides[0]); !strings.Contains(html, `src="data:image/png;base64,`) {
+		t.Fatalf("outside-deck image was not embedded: %s", html)
+	}
+	if html := string(slides[1]); !strings.Contains(html, `src="https://example.com/md-present-remote-image.png"`) || !strings.Contains(html, `<video controls preload="metadata" src="https://example.com/md-present-remote-video.mp4"`) {
+		t.Fatalf("remote media was not kept remote: %s", html)
+	}
+}
+
+func TestFenceSeparatorsFixturePreservesFencedContent(t *testing.T) {
+	source, err := os.ReadFile(filepath.Join("..", "..", "fixtures", "fence-separators.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	slides, err := renderSlides(source, "")
+	if err != nil {
+		t.Fatalf("renderSlides() error: %v", err)
+	}
+	if len(slides) != 2 {
+		t.Fatalf("renderSlides() returned %d slides, want 2", len(slides))
+	}
+	if html := string(slides[0]); !strings.Contains(html, "This separator is code") || !strings.Contains(html, "Still nested code.") {
+		t.Fatalf("first slide did not preserve fenced content: %s", html)
+	}
+	if html := string(slides[1]); !strings.Contains(html, "Second real slide") || !strings.Contains(html, "&lt;slide&gt;") {
+		t.Fatalf("second slide did not render safe unknown code: %s", html)
+	}
+}
+
 func TestRenderSlidesRejectsEmptyDeck(t *testing.T) {
 	if _, err := renderSlides([]byte(" \n---\n "), ""); err == nil {
 		t.Fatal("renderSlides() accepted an empty deck")
