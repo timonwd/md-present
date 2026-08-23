@@ -10,8 +10,9 @@ presentation. Keep the implementation direct and readable.
 - Keep browser code as plain embedded HTML, CSS, and JavaScript under
   `cmd/md-present/web/`.
 - Use `go:embed` for presentation UI assets.
-- Use the root `package.json` and pnpm lockfile only to materialize the pinned
-  Mermaid browser asset before Go compilation. Keep generated assets ignored.
+- Keep the `package.json`, pnpm lockfile, and asset-generation script in
+  `cmd/md-present/web/`. They materialize the pinned Mermaid browser asset
+  before Go compilation. Keep generated assets ignored.
 - Do not add a frontend framework or bundler. Release builds embed the generated
   Mermaid runtime so presentations remain offline-capable.
 - Keep dependencies minimal. Goldmark remains the authority for CommonMark

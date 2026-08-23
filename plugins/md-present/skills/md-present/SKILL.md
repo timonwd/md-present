@@ -37,7 +37,7 @@ Use:
 md-present [--no-open] <deck.md>
 ```
 
-Run `md-present --version` first when availability is uncertain. In an md-present source checkout, run `pnpm install --frozen-lockfile --ignore-scripts`, `pnpm run assets`, then `go build -o md-present ./cmd/md-present`.
+Run `md-present --version` first when availability is uncertain. In an md-present source checkout, run `pnpm --dir cmd/md-present/web install --frozen-lockfile --ignore-scripts`, `pnpm --dir cmd/md-present/web run assets`, then `go build -o md-present ./cmd/md-present`.
 
 Use the default command for an interactive presentation. It prints one loopback URL and opens the browser. Use `--no-open` for automated validation; it prints the URL without launching a browser and continues running until signaled.
 
