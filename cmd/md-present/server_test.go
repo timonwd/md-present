@@ -36,6 +36,12 @@ A --&gt; B
 	if !strings.Contains(response.Body.String(), `class="overflow-warning"`) {
 		t.Fatal("GET / omitted overflow warning")
 	}
+	if !strings.Contains(response.Body.String(), `class="overview-button"`) {
+		t.Fatal("GET / omitted overview control")
+	}
+	if !strings.Contains(response.Body.String(), `aria-keyshortcuts="O"`) {
+		t.Fatal("GET / omitted overview keyboard shortcut")
+	}
 	csp := response.Header().Get("Content-Security-Policy")
 	if csp == "" {
 		t.Fatal("GET / omitted Content-Security-Policy")
@@ -58,7 +64,7 @@ A --&gt; B
 		}
 		if asset == "app.js" {
 			body := assetResponse.Body.String()
-			for _, expected := range []string{"requestFullscreen", "exitFullscreen", `securityLevel: "strict"`, `role", "alert"`, "language-mermaid", "overflowWarningDuration", "scrollBy"} {
+			for _, expected := range []string{"requestFullscreen", "exitFullscreen", `securityLevel: "strict"`, `role", "alert"`, "language-mermaid", "overflowWarningDuration", "scrollBy", "toggleOverview", `role", "grid"`, `role", "gridcell"`} {
 				if !strings.Contains(body, expected) {
 					t.Errorf("GET /assets/app.js omitted %q", expected)
 				}

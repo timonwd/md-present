@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="/assets/style.css">
   </head>
   <body data-revision="{{.Revision}}">
-    <main class="deck" aria-live="polite">
+    <main class="deck" id="slide-deck" aria-live="polite" aria-keyshortcuts="O">
       {{range $index, $slide := .Slides}}
       <section class="slide" id="slide-{{inc $index}}" aria-label="Slide {{inc $index}} of {{len $.Slides}}">
         <div class="slide__scroller">
@@ -17,6 +17,14 @@
       </section>
       {{end}}
     </main>
+    <button class="overview-button" type="button" aria-label="Open slide overview" aria-controls="slide-deck" aria-expanded="false" title="Open slide overview">
+      <svg aria-hidden="true" viewBox="0 0 24 24">
+        <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+        <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+        <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+        <rect x="14" y="14" width="7" height="7" rx="1"></rect>
+      </svg>
+    </button>
     <button class="fullscreen-button" type="button" aria-label="Enter fullscreen" title="Enter fullscreen">
       <svg class="fullscreen-button__enter" aria-hidden="true" viewBox="0 0 24 24">
         <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"></path>
