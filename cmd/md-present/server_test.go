@@ -2,8 +2,10 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"html/template"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -20,7 +22,7 @@ func TestPresentationHandler(t *testing.T) {
 	presentation := newPresentationState([]template.HTML{`<h1>Expected slide</h1><pre><code class="language-mermaid">flowchart LR
 A --&gt; B
 </code></pre>`})
-	handler := presentationHandler(presentation, tracker)
+	handler := presentationHandler(presentation, tracker, io.Discard)
 
 	request := httptest.NewRequest(http.MethodGet, "/", nil)
 	response := httptest.NewRecorder()
@@ -30,6 +32,9 @@ A --&gt; B
 	}
 	if !strings.Contains(response.Body.String(), `class="fullscreen-button"`) {
 		t.Fatal("GET / omitted fullscreen control")
+	}
+	if !strings.Contains(response.Body.String(), `class="overflow-warning"`) {
+		t.Fatal("GET / omitted overflow warning")
 	}
 	csp := response.Header().Get("Content-Security-Policy")
 	if csp == "" {
@@ -53,7 +58,7 @@ A --&gt; B
 		}
 		if asset == "app.js" {
 			body := assetResponse.Body.String()
-			for _, expected := range []string{"requestFullscreen", "exitFullscreen", `securityLevel: "strict"`, `role", "alert"`, "language-mermaid"} {
+			for _, expected := range []string{"requestFullscreen", "exitFullscreen", `securityLevel: "strict"`, `role", "alert"`, "language-mermaid", "overflowWarningDuration", "scrollBy"} {
 				if !strings.Contains(body, expected) {
 					t.Errorf("GET /assets/app.js omitted %q", expected)
 				}
@@ -73,9 +78,49 @@ A --&gt; B
 	}
 }
 
+func TestPresentationHandlerReportsOverflow(t *testing.T) {
+	presentation := newPresentationState([]template.HTML{"<h1>One</h1>", "<h1>Two</h1>"})
+	var diagnostics bytes.Buffer
+	handler := presentationHandler(presentation, newTabTracker(func() {}, time.Second), &diagnostics)
+	bodies := []string{
+		`{"revision":1,"slides":[2],"stageWidth":1280,"stageHeight":720}`,
+		`{"revision":1,"slides":[2],"stageWidth":960,"stageHeight":540}`,
+	}
+
+	for _, body := range bodies {
+		request := httptest.NewRequest(http.MethodPost, "/api/overflow", strings.NewReader(body))
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Origin", "http://example.com")
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusNoContent {
+			t.Fatalf("POST /api/overflow status = %d, want %d", response.Code, http.StatusNoContent)
+		}
+	}
+
+	want := "md-present: warning: slide 2 exceeds the regular 16:9 slide area at 1280x720; scroll to view all content\n"
+	if got := diagnostics.String(); got != want {
+		t.Fatalf("overflow diagnostics = %q, want %q", got, want)
+	}
+}
+
+func TestPresentationHandlerRejectsInvalidOverflowReport(t *testing.T) {
+	presentation := newPresentationState([]template.HTML{"<h1>One</h1>"})
+	handler := presentationHandler(presentation, newTabTracker(func() {}, time.Second), io.Discard)
+	request := httptest.NewRequest(http.MethodPost, "/api/overflow", strings.NewReader(`{"revision":1,"slides":[1],"stageWidth":1280,"stageHeight":720}`))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Origin", "https://example.com")
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("cross-origin POST /api/overflow status = %d, want %d", response.Code, http.StatusForbidden)
+	}
+}
+
 func TestPresentationHandlerStreamsReload(t *testing.T) {
 	presentation := newPresentationState([]template.HTML{"<h1>Before</h1>"})
-	server := httptest.NewServer(presentationHandler(presentation, newTabTracker(func() {}, time.Second)))
+	server := httptest.NewServer(presentationHandler(presentation, newTabTracker(func() {}, time.Second), io.Discard))
 	defer server.Close()
 
 	response, err := server.Client().Get(server.URL + "/api/session?revision=1")
@@ -110,7 +155,7 @@ func TestPresentationServerCancelsSessionStreamDuringShutdown(t *testing.T) {
 	}
 	presentation := newPresentationState([]template.HTML{"<h1>Expected slide</h1>"})
 	server := &http.Server{
-		Handler:     presentationHandler(presentation, newTabTracker(cancel, time.Second)),
+		Handler:     presentationHandler(presentation, newTabTracker(cancel, time.Second), io.Discard),
 		BaseContext: func(net.Listener) context.Context { return ctx },
 	}
 	serverErrors := make(chan error, 1)

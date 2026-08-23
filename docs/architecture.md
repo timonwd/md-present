@@ -36,6 +36,9 @@ presentation. Keep the implementation direct and readable.
   process.
 - Keep keyboard shortcuts inactive when modifiers are held or focus is
   editable.
+- Accept browser layout diagnostics only as bounded, same-origin JSON. Treat
+  them as viewport-specific observations and keep the presentation URL as the
+  only normal stdout output.
 
 ## Coupled browser behavior
 

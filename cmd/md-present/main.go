@@ -48,7 +48,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	if err := servePresentation(path, slides, config.noOpen, stdout); err != nil {
+	if err := servePresentation(path, slides, config.noOpen, stdout, stderr); err != nil {
 		fmt.Fprintf(stderr, "md-present: %v\n", err)
 		return 1
 	}
