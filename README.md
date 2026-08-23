@@ -75,7 +75,7 @@ Use `md-present --no-open plan.md` to start without opening a browser. Press Ctr
 
 ### Mermaid diagrams
 
-Use a fenced `mermaid` block for diagrams. The bundled offline Mermaid runtime supports flowcharts, sequence, class, state, entity-relationship, timeline, mind map, and architecture diagrams. Other Mermaid diagram types may also render, but are not part of the compatibility baseline. Diagrams render as static SVG images using strict security; interactive callbacks and Mermaid `init` or `config` directives are not supported. Invalid or unsupported diagrams show an in-slide error with their source, without affecting other slides. For syntax and examples, see the [Mermaid documentation](https://mermaid.js.org/intro/).
+Use a fenced `mermaid` block for diagrams. The bundled offline Mermaid runtime supports flowcharts, sequence, class, state, entity-relationship, timeline, mind map, and architecture diagrams. Other Mermaid diagram types may also render, but are not part of the compatibility baseline. Diagrams render as static SVG images using strict security; interactive callbacks and Mermaid `init` or `config` directives are not supported. Invalid or unsupported diagrams show an in-slide error with their source, without affecting other slides. For syntax and examples, see the [Mermaid documentation](https://mermaid.ai/open-source/intro/syntax-reference.html).
 
 ## Controls
 
