@@ -38,6 +38,13 @@ layout or navigation changes, repeat the browser smoke test with
 `fixtures/overflow.md` and verify the warning, collapsed indicator, scrolling,
 and navigation boundary behavior.
 
+For Mermaid renderer or browser changes, run `md-present --no-open
+fixtures/mermaid-types.md` and open the printed URL. Confirm the eight baseline
+diagrams render as SVG images, the invalid diagram and configuration-directive
+example each show an in-slide alert with their escaped source, and no diagram
+remains busy. This is a browser smoke test because Mermaid rendering occurs in
+the embedded browser runtime rather than the Go server.
+
 ## Agent plugin
 
 Codex and Claude Code share the plugin package under `plugins/md-present/`.
