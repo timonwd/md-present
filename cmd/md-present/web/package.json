@@ -1,13 +1,12 @@
 {
   "name": "md-present-assets",
   "private": true,
-  "type": "module",
   "packageManager": "pnpm@11.22.0",
   "engines": {
     "node": ">=24"
   },
   "scripts": {
-    "assets": "node scripts/sync-mermaid.mjs"
+    "assets": "bash scripts/sync-mermaid.sh"
   },
   "devDependencies": {
     "mermaid": "11.17.0"
