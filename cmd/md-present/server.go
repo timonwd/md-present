@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
@@ -46,6 +47,62 @@ type presentationState struct {
 	slides      []template.HTML
 	revision    uint64
 	subscribers map[chan uint64]struct{}
+}
+
+type overflowReport struct {
+	Revision    uint64 `json:"revision"`
+	Slides      []int  `json:"slides"`
+	StageWidth  int    `json:"stageWidth"`
+	StageHeight int    `json:"stageHeight"`
+}
+
+type overflowReporter struct {
+	mu       sync.Mutex
+	writer   io.Writer
+	revision uint64
+	seen     map[string]struct{}
+}
+
+func newOverflowReporter(writer io.Writer) *overflowReporter {
+	return &overflowReporter{writer: writer, seen: make(map[string]struct{})}
+}
+
+func (r *overflowReporter) report(report overflowReport) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if report.Revision != r.revision {
+		r.revision = report.Revision
+		clear(r.seen)
+	}
+	fingerprint := fmt.Sprint(report.Slides)
+	if _, reported := r.seen[fingerprint]; reported {
+		return
+	}
+	r.seen[fingerprint] = struct{}{}
+
+	slideLabel := "slides"
+	verb := "exceed"
+	if len(report.Slides) == 1 {
+		slideLabel = "slide"
+		verb = "exceeds"
+	}
+	fmt.Fprintf(
+		r.writer,
+		"md-present: warning: %s %s %s the regular 16:9 slide area at %dx%d; scroll to view all content\n",
+		slideLabel,
+		formatSlideNumbers(report.Slides),
+		verb,
+		report.StageWidth,
+		report.StageHeight,
+	)
+}
+
+func formatSlideNumbers(slides []int) string {
+	values := make([]string, len(slides))
+	for index, slide := range slides {
+		values[index] = strconv.Itoa(slide)
+	}
+	return strings.Join(values, ", ")
 }
 
 func newPresentationState(slides []template.HTML) *presentationState {
@@ -125,14 +182,57 @@ func (t *tabTracker) connected() func() {
 	}
 }
 
-func presentationHandler(presentation *presentationState, tracker *tabTracker) http.Handler {
+func presentationHandler(presentation *presentationState, tracker *tabTracker, diagnostics io.Writer) http.Handler {
 	assets, err := fs.Sub(webFiles, "web")
 	if err != nil {
 		panic(err)
 	}
 	assetHandler := http.StripPrefix("/assets/", http.FileServer(http.FS(assets)))
+	overflowWarnings := newOverflowReporter(diagnostics)
 	mux := http.NewServeMux()
 	mux.Handle("GET /assets/", assetHandler)
+	mux.HandleFunc("POST /api/overflow", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Origin") != "http://"+r.Host {
+			http.Error(w, "cross-origin request rejected", http.StatusForbidden)
+			return
+		}
+		if !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
+			http.Error(w, "expected application/json", http.StatusUnsupportedMediaType)
+			return
+		}
+
+		var report overflowReport
+		decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&report); err != nil {
+			http.Error(w, "invalid overflow report", http.StatusBadRequest)
+			return
+		}
+		if err := decoder.Decode(&struct{}{}); err != io.EOF {
+			http.Error(w, "invalid overflow report", http.StatusBadRequest)
+			return
+		}
+		slides, revision := presentation.snapshot()
+		if report.Revision != revision {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		if report.StageWidth <= 0 || report.StageHeight <= 0 || report.StageWidth > 100_000 || report.StageHeight > 100_000 || len(report.Slides) == 0 || len(report.Slides) > len(slides) {
+			http.Error(w, "invalid overflow report", http.StatusBadRequest)
+			return
+		}
+		previous := 0
+		for _, slide := range report.Slides {
+			if slide <= previous || slide > len(slides) {
+				http.Error(w, "invalid overflow report", http.StatusBadRequest)
+				return
+			}
+			previous = slide
+		}
+
+		overflowWarnings.report(report)
+		w.WriteHeader(http.StatusNoContent)
+	})
 	mux.HandleFunc("GET /api/session", func(w http.ResponseWriter, r *http.Request) {
 		flusher, ok := w.(http.Flusher)
 		if !ok {
@@ -185,7 +285,7 @@ func presentationHandler(presentation *presentationState, tracker *tabTracker) h
 	})
 }
 
-func servePresentation(markdownPath string, slides []template.HTML, noOpen bool, stdout io.Writer) error {
+func servePresentation(markdownPath string, slides []template.HTML, noOpen bool, stdout, stderr io.Writer) error {
 	listener, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
 		return fmt.Errorf("start local server: %w", err)
@@ -196,7 +296,7 @@ func servePresentation(markdownPath string, slides []template.HTML, noOpen bool,
 	tracker := newTabTracker(stop, tabCloseGrace)
 	presentation := newPresentationState(slides)
 	server := &http.Server{
-		Handler:           presentationHandler(presentation, tracker),
+		Handler:           presentationHandler(presentation, tracker, stderr),
 		BaseContext:       func(net.Listener) context.Context { return ctx },
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       30 * time.Second,

@@ -29,8 +29,11 @@ go build ./...
 ```
 
 For server or UI changes, also build the executable and smoke-test `--no-open`
-against `example.md`: wait for the URL, request the page and embedded assets,
-verify representative slide content, then stop the process cleanly.
+against `fixtures/example.md`: wait for the URL, request the page and embedded
+assets, verify representative slide content, then stop the process cleanly. For
+layout or navigation changes, repeat the browser smoke test with
+`fixtures/overflow.md` and verify the warning, collapsed indicator, scrolling,
+and navigation boundary behavior.
 
 ## Agent plugin
 

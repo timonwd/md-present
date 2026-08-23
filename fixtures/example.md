@@ -1,8 +1,6 @@
-# md-present
+![md-present — Markdown in. Slides out.](assets/md-present-cover.png)
 
-Markdown in. Slides out.
-
-`md-present ./example.md`
+`md-present ./fixtures/example.md`
 
 ---
 
@@ -89,8 +87,6 @@ flowchart LR
     B --> C[Present locally]
     B --> D[Print or share]
 ```
-
-Mermaid runs from the embedded application bundle, without a CDN or runtime network request.
 
 ---
 

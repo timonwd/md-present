@@ -4,9 +4,23 @@
   const slides = Array.from(document.querySelectorAll(".slide"));
   const currentLabel = document.querySelector("#current");
   const fullscreenButton = document.querySelector(".fullscreen-button");
+  const overflowWarning = document.querySelector(".overflow-warning");
+  const overflowWarningText = document.querySelector(".overflow-warning__text");
   const colorScheme = window.matchMedia("(prefers-color-scheme: dark)");
   let current = 0;
   let diagramRender = Promise.resolve();
+  let overflowMeasurement = 0;
+  let lastOverflowReport = "";
+  let overflowingSlides = [];
+  let overflowWarningTimer;
+  let overflowTransitionTimer;
+  let overflowWarningExpanded = false;
+  let loadWarningActive = false;
+  let loadWarningShown = false;
+  const observedImages = new WeakSet();
+  const overflowWarningDuration = 5000;
+  const overflowTransitionDuration = 180;
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
   const diagrams = Array.from(document.querySelectorAll("pre > code.language-mermaid")).map((code, index) => {
     const figure = document.createElement("figure");
@@ -109,6 +123,162 @@
   function scheduleDiagramRender() {
     const theme = colorScheme.matches ? "dark" : "default";
     diagramRender = diagramRender.catch(() => {}).then(() => renderDiagrams(theme));
+    diagramRender.then(scheduleOverflowMeasurement, scheduleOverflowMeasurement);
+  }
+
+  function overflowMessage(slideNumbers) {
+    if (slideNumbers.length === 1) {
+      return `Slide ${slideNumbers[0]} exceeds the regular slide size. Scroll to view all content.`;
+    }
+    if (slideNumbers.length <= 5) {
+      return `Slides ${slideNumbers.join(", ")} exceed the regular slide size. Scroll to view all content.`;
+    }
+    return `${slideNumbers.length} slides exceed the regular slide size. Scroll to view all content.`;
+  }
+
+  function activeSlideOverflows() {
+    return overflowingSlides.includes(current + 1);
+  }
+
+  function showCollapsedOverflowIndicator() {
+    overflowWarningExpanded = false;
+    loadWarningActive = false;
+    if (!activeSlideOverflows()) {
+      overflowWarning.hidden = true;
+      return;
+    }
+    overflowWarning.hidden = false;
+    overflowWarning.classList.add("is-collapsed");
+    overflowWarning.setAttribute("aria-label", `Show overflow warning for slide ${current + 1}`);
+  }
+
+  function collapseOverflowWarning() {
+    clearTimeout(overflowWarningTimer);
+    clearTimeout(overflowTransitionTimer);
+    overflowWarningExpanded = false;
+    loadWarningActive = false;
+    overflowWarning.classList.add("is-dismissing");
+
+    const finish = () => {
+      if (overflowWarningExpanded) return;
+      if (activeSlideOverflows()) {
+        showCollapsedOverflowIndicator();
+      } else {
+        overflowWarning.hidden = true;
+      }
+      overflowWarning.classList.remove("is-dismissing");
+    };
+    if (reducedMotion.matches) {
+      finish();
+    } else {
+      overflowTransitionTimer = setTimeout(finish, overflowTransitionDuration);
+    }
+  }
+
+  function showOverflowWarning(slideNumbers, global = false) {
+    clearTimeout(overflowTransitionTimer);
+    overflowWarningExpanded = true;
+    loadWarningActive = global;
+    overflowWarningText.textContent = overflowMessage(slideNumbers);
+    overflowWarning.classList.remove("is-collapsed", "is-dismissing");
+    overflowWarning.removeAttribute("aria-label");
+    overflowWarning.hidden = false;
+    clearTimeout(overflowWarningTimer);
+    overflowWarningTimer = setTimeout(collapseOverflowWarning, overflowWarningDuration);
+  }
+
+  function updateOverflowWarningForActiveSlide() {
+    if (overflowWarningExpanded && loadWarningActive) return;
+    if (overflowWarningExpanded) {
+      collapseOverflowWarning();
+      return;
+    }
+    if (!activeSlideOverflows()) {
+      overflowWarning.hidden = true;
+      return;
+    }
+    showCollapsedOverflowIndicator();
+  }
+
+  function measureSlide(slide) {
+    const hidden = !slide.classList.contains("is-active");
+    const scroller = slide.querySelector(".slide__scroller");
+    slide.classList.remove("has-overflow");
+    if (hidden) slide.classList.add("is-measuring");
+    const overflow = scroller.scrollHeight > scroller.clientHeight + 1 || scroller.scrollWidth > scroller.clientWidth + 1;
+    const size = { width: slide.clientWidth, height: slide.clientHeight };
+    if (hidden) slide.classList.remove("is-measuring");
+    slide.classList.toggle("has-overflow", overflow);
+    if (overflow) {
+      scroller.tabIndex = 0;
+    } else {
+      scroller.removeAttribute("tabindex");
+    }
+    return { overflow, size };
+  }
+
+  async function measureOverflow(generation) {
+    await (document.fonts?.ready || Promise.resolve());
+    await diagramRender.catch(() => {});
+    Array.from(document.images).forEach((image) => {
+      if (observedImages.has(image)) return;
+      observedImages.add(image);
+      if (!image.complete) {
+        image.addEventListener("load", scheduleOverflowMeasurement, { once: true });
+        image.addEventListener("error", scheduleOverflowMeasurement, { once: true });
+      }
+    });
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    if (generation !== overflowMeasurement) return;
+
+    const overflowing = [];
+    let stageSize = { width: 0, height: 0 };
+    slides.forEach((slide, index) => {
+      const measurement = measureSlide(slide);
+      stageSize = measurement.size;
+      if (measurement.overflow) overflowing.push(index + 1);
+    });
+
+    if (overflowing.length === 0) {
+      clearTimeout(overflowWarningTimer);
+      clearTimeout(overflowTransitionTimer);
+      overflowWarningExpanded = false;
+      loadWarningActive = false;
+      overflowWarning.classList.remove("is-collapsed", "is-dismissing");
+      overflowWarning.hidden = true;
+      overflowWarningText.textContent = "";
+      overflowingSlides = [];
+      lastOverflowReport = "";
+      return;
+    }
+
+    const changed = overflowing.join(",") !== overflowingSlides.join(",");
+    overflowingSlides = overflowing;
+    if (!loadWarningShown) {
+      loadWarningShown = true;
+      showOverflowWarning(overflowing, true);
+    } else if (changed) {
+      updateOverflowWarningForActiveSlide();
+    }
+    const report = {
+      revision: Number(document.body.dataset.revision),
+      slides: overflowing,
+      stageWidth: stageSize.width,
+      stageHeight: stageSize.height,
+    };
+    const fingerprint = JSON.stringify({ revision: report.revision, slides: report.slides });
+    if (fingerprint === lastOverflowReport) return;
+    lastOverflowReport = fingerprint;
+    fetch("/api/overflow", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(report),
+    }).catch(() => {});
+  }
+
+  function scheduleOverflowMeasurement() {
+    const generation = ++overflowMeasurement;
+    requestAnimationFrame(() => measureOverflow(generation));
   }
 
   function hashIndex() {
@@ -119,7 +289,10 @@
   }
 
   function show(index, updateHash = true) {
-    current = Math.max(0, Math.min(index, slides.length - 1));
+    const next = Math.max(0, Math.min(index, slides.length - 1));
+    const changed = next !== current;
+    if (changed) slides[current].querySelector(".slide__scroller").scrollTop = 0;
+    current = next;
     slides.forEach((slide, slideIndex) => {
       const active = slideIndex === current;
       slide.classList.toggle("is-active", active);
@@ -127,11 +300,33 @@
     });
     currentLabel.textContent = String(current + 1);
     if (updateHash) history.replaceState(null, "", `#${current + 1}`);
+    if (changed) updateOverflowWarningForActiveSlide();
   }
 
   function isEditable(target) {
     return target instanceof Element && Boolean(target.closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])"));
   }
+
+  function scrollActiveSlide(direction, key) {
+    const slide = slides[current];
+    if (!slide.classList.contains("has-overflow")) return false;
+    const scroller = slide.querySelector(".slide__scroller");
+    const maximum = scroller.scrollHeight - scroller.clientHeight;
+    if (direction > 0 && scroller.scrollTop >= maximum - 1) return false;
+    if (direction < 0 && scroller.scrollTop <= 1) return false;
+    const pageDistance = Math.max(1, scroller.clientHeight * 0.8);
+    const arrowDistance = Math.max(40, scroller.clientHeight * 0.12);
+    scroller.scrollBy({ top: direction * (key.startsWith("Arrow") ? arrowDistance : pageDistance) });
+    return true;
+  }
+
+  overflowWarning.addEventListener("click", () => {
+    if (overflowWarningExpanded) {
+      collapseOverflowWarning();
+    } else if (activeSlideOverflows()) {
+      showOverflowWarning([current + 1]);
+    }
+  });
 
   document.querySelector(".deck").addEventListener("click", (event) => {
     if (
@@ -149,14 +344,20 @@
   document.addEventListener("keydown", (event) => {
     if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || isEditable(event.target)) return;
 
-    const next = ["ArrowRight", "ArrowDown", "PageDown", " "];
-    const previous = ["ArrowLeft", "ArrowUp", "PageUp"];
-    if (next.includes(event.key)) {
+    const scrollNext = ["ArrowDown", "PageDown", " "];
+    const scrollPrevious = ["ArrowUp", "PageUp"];
+    if (event.key === "ArrowRight") {
       event.preventDefault();
       show(current + 1);
-    } else if (previous.includes(event.key)) {
+    } else if (scrollNext.includes(event.key)) {
+      event.preventDefault();
+      if (!scrollActiveSlide(1, event.key)) show(current + 1);
+    } else if (event.key === "ArrowLeft") {
       event.preventDefault();
       show(current - 1);
+    } else if (scrollPrevious.includes(event.key)) {
+      event.preventDefault();
+      if (!scrollActiveSlide(-1, event.key)) show(current - 1);
     } else if (event.key === "Home") {
       event.preventDefault();
       show(0);
@@ -167,8 +368,10 @@
   });
 
   window.addEventListener("hashchange", () => show(hashIndex()));
+  window.addEventListener("resize", scheduleOverflowMeasurement);
   show(hashIndex());
   scheduleDiagramRender();
+  scheduleOverflowMeasurement();
   colorScheme.addEventListener("change", scheduleDiagramRender);
 
   function updateFullscreenButton() {
@@ -191,7 +394,10 @@
         // The browser may reject fullscreen when the user gesture is no longer valid.
       }
     });
-    document.addEventListener("fullscreenchange", updateFullscreenButton);
+    document.addEventListener("fullscreenchange", () => {
+      updateFullscreenButton();
+      scheduleOverflowMeasurement();
+    });
     updateFullscreenButton();
   } else {
     fullscreenButton.hidden = true;

@@ -1,4 +1,4 @@
-![md-present — Markdown in. Slides out.](assets/social-preview.png)
+![md-present — Markdown in. Slides out.](fixtures/assets/md-present-cover.png)
 
 # md-present
 
@@ -34,22 +34,27 @@ Relative image paths are resolved from the Markdown file's directory and embedde
 GitHub-Flavored Markdown tables, strikethrough, task lists, and automatic links are supported. Fenced code blocks with a recognized language are highlighted locally. A fenced `mermaid` block renders as a diagram using the embedded Mermaid runtime. Raw HTML remains disabled for safety.
 
 ```sh
-md-present ./example.md
-md-present --no-open ./example.md
+md-present ./fixtures/example.md
+md-present --no-open ./fixtures/example.md
 ```
 
+The [`fixtures`](fixtures) directory also contains [`overflow.md`](fixtures/overflow.md), a deliberately oversized deck for checking overflow warnings, the collapsed warning indicator, scrolling, and keyboard navigation.
+
 The server listens only on a random `127.0.0.1` port. Without `--no-open`, the default browser opens automatically. Saving the Markdown file or a referenced local image reloads connected presentation tabs and keeps the active slide selected. Invalid intermediate saves leave the last valid presentation visible. Closing the last connected presentation tab normally stops the server after a short grace period; browser crashes and forced termination may prevent a final disconnect from being observed. Use Ctrl+C to stop it explicitly.
+
+After the browser lays out the deck, a temporary warning identifies slides whose content exceeds the regular 16:9 slide area, and the same warning is written to the terminal. Oversized slides become scrollable while normal slides keep their fixed layout. On an oversized slide, the browser warning collapses to a small indicator that can expand it again. Clicking the expanded warning dismisses it early, collapsing it on an oversized slide or hiding it on a normal slide. The result depends on the browser's current size. With `--no-open`, overflow can therefore be reported only after the presentation URL is opened in a browser.
 
 ## Controls
 
 | Action | Keys |
 | --- | --- |
-| Next slide | Right, Down, Page Down, Space |
-| Previous slide | Left, Up, Page Up |
+| Next slide | Right; Down, Page Down, or Space at the end of an oversized slide |
+| Previous slide | Left; Up or Page Up at the start of an oversized slide |
+| Scroll oversized slide | Mouse wheel, trackpad, touch, Down, Up, Page Down, Page Up, Space |
 | First slide | Home |
 | Last slide | End |
 
-Use the button in the upper-right corner to enter or exit fullscreen. The active slide is stored in the URL hash. Printing uses one slide per landscape page.
+Use the button in the upper-right corner to enter or exit fullscreen. The active slide is stored in the URL hash. Printing uses one fixed landscape page per slide; content that requires scrolling while presenting may therefore be clipped when printed.
 
 ## MVP limitations
 

@@ -11,7 +11,9 @@
     <main class="deck" aria-live="polite">
       {{range $index, $slide := .Slides}}
       <section class="slide" id="slide-{{inc $index}}" aria-label="Slide {{inc $index}} of {{len $.Slides}}">
-        <div class="slide__content">{{$slide}}</div>
+        <div class="slide__scroller">
+          <div class="slide__content">{{$slide}}</div>
+        </div>
       </section>
       {{end}}
     </main>
@@ -22,6 +24,12 @@
       <svg class="fullscreen-button__exit" aria-hidden="true" viewBox="0 0 24 24">
         <path d="M8 3v5H3M16 3v5h5M8 21v-5H3M16 21v-5h5"></path>
       </svg>
+    </button>
+    <button class="overflow-warning" type="button" aria-label="Show overflow warning" aria-live="polite" hidden>
+      <svg aria-hidden="true" viewBox="0 0 24 24">
+        <path d="M12 3 2.8 20h18.4L12 3Zm0 6v5m0 3.2v.1"></path>
+      </svg>
+      <span class="overflow-warning__text"></span>
     </button>
     <div class="progress" aria-hidden="true"><span id="current">1</span><span class="progress__rule"></span><span>{{len .Slides}}</span></div>
     <script defer src="/assets/mermaid.min.js"></script>
