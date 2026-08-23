@@ -1,13 +1,17 @@
 (() => {
   "use strict";
 
+  const deck = document.querySelector(".deck");
   const slides = Array.from(document.querySelectorAll(".slide"));
   const currentLabel = document.querySelector("#current");
+  const overviewButton = document.querySelector(".overview-button");
   const fullscreenButton = document.querySelector(".fullscreen-button");
   const overflowWarning = document.querySelector(".overflow-warning");
   const overflowWarningText = document.querySelector(".overflow-warning__text");
   const colorScheme = window.matchMedia("(prefers-color-scheme: dark)");
   let current = 0;
+  let overview = false;
+  let overviewIndex = 0;
   let diagramRender = Promise.resolve();
   let overflowMeasurement = 0;
   let lastOverflowReport = "";
@@ -277,6 +281,7 @@
   }
 
   function scheduleOverflowMeasurement() {
+    if (overview) return;
     const generation = ++overflowMeasurement;
     requestAnimationFrame(() => measureOverflow(generation));
   }
@@ -296,11 +301,69 @@
     slides.forEach((slide, slideIndex) => {
       const active = slideIndex === current;
       slide.classList.toggle("is-active", active);
-      slide.setAttribute("aria-hidden", String(!active));
+      slide.setAttribute("aria-hidden", String(!overview && !active));
+      if (active) {
+        slide.setAttribute("aria-current", "page");
+      } else {
+        slide.removeAttribute("aria-current");
+      }
     });
     currentLabel.textContent = String(current + 1);
     if (updateHash) history.replaceState(null, "", `#${current + 1}`);
     if (changed) updateOverflowWarningForActiveSlide();
+  }
+
+  function focusOverviewSlide(index) {
+    overviewIndex = Math.max(0, Math.min(index, slides.length - 1));
+    slides.forEach((slide, slideIndex) => {
+      const selected = slideIndex === overviewIndex;
+      slide.tabIndex = selected ? 0 : -1;
+      slide.setAttribute("aria-selected", String(selected));
+    });
+    slides[overviewIndex].focus({ preventScroll: true });
+    slides[overviewIndex].scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+
+  function overviewColumnCount() {
+    const firstTop = slides[0]?.offsetTop;
+    if (firstTop === undefined) return 1;
+    const count = slides.findIndex((slide) => Math.abs(slide.offsetTop - firstTop) > 1);
+    return count === -1 ? slides.length : Math.max(1, count);
+  }
+
+  function toggleOverview() {
+    overview = !overview;
+    document.body.classList.toggle("is-overview", overview);
+    deck.classList.toggle("is-overview", overview);
+    const overviewLabel = overview ? "Close slide overview" : "Open slide overview";
+    overviewButton.classList.toggle("is-active", overview);
+    overviewButton.setAttribute("aria-expanded", String(overview));
+    overviewButton.setAttribute("aria-label", overviewLabel);
+    overviewButton.setAttribute("title", overviewLabel);
+
+    if (overview) {
+      overflowMeasurement += 1;
+      deck.setAttribute("role", "grid");
+      deck.setAttribute("aria-label", "Slide overview");
+      deck.removeAttribute("aria-live");
+      slides.forEach((slide) => {
+        slide.setAttribute("role", "gridcell");
+        slide.setAttribute("aria-hidden", "false");
+      });
+      requestAnimationFrame(() => focusOverviewSlide(current));
+      return;
+    }
+
+    deck.removeAttribute("role");
+    deck.removeAttribute("aria-label");
+    deck.setAttribute("aria-live", "polite");
+    slides.forEach((slide, index) => {
+      slide.removeAttribute("role");
+      slide.removeAttribute("aria-selected");
+      slide.removeAttribute("tabindex");
+      slide.setAttribute("aria-hidden", String(index !== current));
+    });
+    scheduleOverflowMeasurement();
   }
 
   function isEditable(target) {
@@ -328,7 +391,16 @@
     }
   });
 
-  document.querySelector(".deck").addEventListener("click", (event) => {
+  overviewButton.addEventListener("click", toggleOverview);
+
+  deck.addEventListener("click", (event) => {
+    const clickedSlide = event.target instanceof Element ? event.target.closest(".slide") : null;
+    if (overview && clickedSlide) {
+      event.preventDefault();
+      show(slides.indexOf(clickedSlide));
+      toggleOverview();
+      return;
+    }
     if (
       event.defaultPrevented ||
       event.button !== 0 ||
@@ -343,6 +415,38 @@
 
   document.addEventListener("keydown", (event) => {
     if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || isEditable(event.target)) return;
+
+    if (event.key.toLowerCase() === "o") {
+      event.preventDefault();
+      toggleOverview();
+      return;
+    }
+
+    if (overview) {
+      const columns = overviewColumnCount();
+      let next = overviewIndex;
+      if (event.key === "ArrowRight") next += 1;
+      else if (event.key === "ArrowLeft") next -= 1;
+      else if (event.key === "ArrowDown") next += columns;
+      else if (event.key === "ArrowUp") next -= columns;
+      else if (event.key === "Home") next = 0;
+      else if (event.key === "End") next = slides.length - 1;
+      else if (event.key === "Enter") {
+        event.preventDefault();
+        show(overviewIndex);
+        toggleOverview();
+        return;
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        toggleOverview();
+        return;
+      } else {
+        return;
+      }
+      event.preventDefault();
+      focusOverviewSlide(next);
+      return;
+    }
 
     const scrollNext = ["ArrowDown", "PageDown", " "];
     const scrollPrevious = ["ArrowUp", "PageUp"];

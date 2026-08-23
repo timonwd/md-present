@@ -11,6 +11,7 @@ md-present is built to be agent-first. Agents already use Markdown for almost ev
 - GitHub-Flavored Markdown, syntax highlighting, and Mermaid diagrams
 - Local images embedded in the browser output
 - Light and dark mode
+- Slide overview for quickly navigating longer decks
 - Fullscreen viewing and presenting
 
 ## Install
@@ -79,6 +80,8 @@ Use `md-present --no-open plan.md` to start without opening a browser. Press Ctr
 | Next slide | Right, Down, Page Down, or Space |
 | Previous slide | Left, Up, or Page Up |
 | First / last slide | Home / End |
+| Toggle slide overview | Button in the upper-left corner or O |
+| Navigate / select in overview | Arrow keys / Enter |
 | Fullscreen | Button in the upper-right corner |
 
 Oversized slides scroll before navigation continues. Their content may be clipped when printed.

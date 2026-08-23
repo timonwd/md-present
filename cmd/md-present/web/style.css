@@ -53,6 +53,51 @@ body {
   animation: enter 180ms ease-out both;
 }
 
+body.is-overview { overflow: auto; }
+
+.deck.is-overview {
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  min-height: 100svh;
+  align-content: start;
+  gap: clamp(1rem, 2vw, 2rem);
+  padding: clamp(4.5rem, 8vw, 6rem) clamp(1rem, 4vw, 3.5rem);
+  place-items: stretch;
+}
+
+.deck.is-overview .slide {
+  display: flex;
+  width: 100%;
+  animation: none;
+  cursor: pointer;
+  outline: 1px solid var(--line);
+  outline-offset: 0;
+  box-shadow: 0 0.7rem 2rem rgb(20 25 38 / 12%);
+}
+
+.deck.is-overview .slide.is-active {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+  box-shadow: inset 0 0 0 3px var(--accent), 0 0.7rem 2rem rgb(20 25 38 / 12%);
+}
+
+.deck.is-overview .slide:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 4px;
+}
+
+.deck.is-overview .slide__scroller,
+.deck.is-overview .slide.has-overflow .slide__scroller { overflow: hidden; }
+.deck.is-overview .slide__content { padding: 6.2cqw; font-size: 1.55cqw; pointer-events: none; }
+.deck.is-overview h1 { font-size: 5.3cqw; }
+.deck.is-overview h2 { font-size: 3.8cqw; }
+.deck.is-overview h3 { font-size: 2.4cqw; }
+.deck.is-overview img { max-height: 48cqh; }
+.deck.is-overview .mermaid-diagram { max-height: 52cqh; }
+.deck.is-overview .mermaid-diagram__image { max-height: 50cqh; }
+.is-overview .progress,
+.is-overview .fullscreen-button,
+.is-overview .overflow-warning { display: none; }
+
 .slide__scroller {
   display: flex;
   width: 100%;
@@ -206,10 +251,10 @@ img { display: block; max-width: 100%; max-height: 48vh; max-height: 48cqh; obje
 
 .progress__rule { width: 1.6rem; height: 1px; background: var(--muted); opacity: 0.45; }
 
-.fullscreen-button {
+.fullscreen-button,
+.overview-button {
   position: fixed;
   top: clamp(1rem, 2.4vw, 2rem);
-  right: clamp(1.2rem, 3vw, 2.5rem);
   display: grid;
   width: 2.5rem;
   height: 2.5rem;
@@ -222,12 +267,15 @@ img { display: block; max-width: 100%; max-height: 48vh; max-height: 48cqh; obje
   cursor: pointer;
   box-shadow: 0 0.35rem 1.2rem rgb(20 25 38 / 10%);
   transition: opacity 180ms ease, transform 180ms ease;
+  z-index: 2;
 }
 
-.fullscreen-button:hover { color: var(--ink); }
-.fullscreen-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.fullscreen-button { right: clamp(1.2rem, 3vw, 2.5rem); }
+.overview-button { left: clamp(1.2rem, 3vw, 2.5rem); }
+.fullscreen-button:hover, .overview-button:hover, .overview-button.is-active { color: var(--ink); }
+.fullscreen-button:focus-visible, .overview-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .fullscreen-button[hidden] { display: none; }
-.fullscreen-button svg { width: 1.1rem; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+.fullscreen-button svg, .overview-button svg { width: 1.1rem; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
 .fullscreen-button__exit { display: none; }
 .fullscreen-button.is-active .fullscreen-button__enter { display: none; }
 .fullscreen-button.is-active .fullscreen-button__exit { display: block; }
@@ -326,17 +374,18 @@ img { display: block; max-width: 100%; max-height: 48vh; max-height: 48cqh; obje
   .chroma .gd { color: #82071e; background: #ffebe9; }
   .chroma .gi { color: #116329; background: #dafbe1; }
   body { overflow: visible; background: white; }
-  .deck { display: block; padding: 0; }
-  .slide, .slide.is-active {
+  .deck, .deck.is-overview { display: block; padding: 0; }
+  .slide, .slide.is-active, .deck.is-overview .slide {
     display: flex;
     width: 100vw;
     height: 100vh;
     break-after: page;
     box-shadow: none;
     animation: none;
+    outline: 0;
   }
   .slide.has-overflow .slide__scroller { overflow: hidden; }
-  .progress, .fullscreen-button, .overflow-warning { display: none; }
+  .progress, .fullscreen-button, .overview-button, .overflow-warning { display: none; }
 }
 
 .mermaid-diagram {
