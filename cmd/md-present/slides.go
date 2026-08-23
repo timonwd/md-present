@@ -98,6 +98,7 @@ func renderSlides(source []byte, deckDirectory string) ([]template.HTML, error) 
 }
 
 func renderSlidesWithWarnings(source []byte, deckDirectory string, warnings io.Writer) ([]template.HTML, error) {
+	warnUnterminatedFencedCodeBlocks(source, warnings)
 	markdownSlides := splitSlides(string(source))
 	if len(markdownSlides) == 0 {
 		return nil, fmt.Errorf("the Markdown file contains no slide content")
@@ -119,6 +120,26 @@ func renderSlidesWithWarnings(source []byte, deckDirectory string, warnings io.W
 		rendered = append(rendered, template.HTML(output.String())) //nolint:gosec
 	}
 	return rendered, nil
+}
+
+func warnUnterminatedFencedCodeBlocks(source []byte, warnings io.Writer) {
+	if warnings == nil {
+		return
+	}
+
+	markdown := newMarkdownRenderer()
+	document := markdown.Parser().Parse(text.NewReader(source))
+	_ = ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering || node.Kind() != ast.KindFencedCodeBlock {
+			return ast.WalkContinue, nil
+		}
+		lines := node.Lines()
+		if lines.Len() == 0 || lines.At(lines.Len()-1).Stop != len(source) {
+			return ast.WalkContinue, nil
+		}
+		fmt.Fprintln(warnings, "md-present: warning: unterminated fenced code block continues to the end of the document")
+		return ast.WalkContinue, nil
+	})
 }
 
 func externalMediaReferences(source []byte, deckDirectory string) []string {
