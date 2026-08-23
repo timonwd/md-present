@@ -24,8 +24,10 @@ presentation. Keep the implementation direct and readable.
 - Print the final local URL exactly once after the listener is ready.
 - Never expose the source file or its directory as an arbitrary filesystem
   endpoint.
-- Resolve relative Markdown images and videos from the deck directory and embed them in
-  the generated page.
+- Resolve relative Markdown images and videos from the deck directory and embed
+  them in the generated page. Allow remote HTTP(S) image and video URLs; the
+  viewer's browser loads those directly rather than proxying them through the
+  local server.
 - Keep raw HTML disabled and avoid script-injection paths when changing
   rendering.
 - Preserve fence-aware `---` slide splitting, including fenced blocks nested in
