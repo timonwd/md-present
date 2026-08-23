@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"html/template"
+	"io"
 	"mime"
 	"net/http"
 	"net/url"
@@ -93,6 +94,10 @@ func overlapsRange(start, stop int, ranges []sourceRange) bool {
 }
 
 func renderSlides(source []byte, deckDirectory string) ([]template.HTML, error) {
+	return renderSlidesWithWarnings(source, deckDirectory, nil)
+}
+
+func renderSlidesWithWarnings(source []byte, deckDirectory string, warnings io.Writer) ([]template.HTML, error) {
 	markdownSlides := splitSlides(string(source))
 	if len(markdownSlides) == 0 {
 		return nil, fmt.Errorf("the Markdown file contains no slide content")
@@ -103,7 +108,7 @@ func renderSlides(source []byte, deckDirectory string) ([]template.HTML, error) 
 	for _, slide := range markdownSlides {
 		slideSource := []byte(slide)
 		document := renderer.Parser().Parse(text.NewReader(slideSource))
-		if err := embedLocalMedia(document, deckDirectory); err != nil {
+		if err := embedLocalMedia(document, deckDirectory, warnings); err != nil {
 			return nil, err
 		}
 		var output bytes.Buffer
@@ -139,6 +144,45 @@ func externalMediaReferences(source []byte, deckDirectory string) []string {
 	return references
 }
 
+func localMediaPaths(source []byte, deckDirectory string) []string {
+	document := newMarkdownRenderer().Parser().Parse(text.NewReader(source))
+	seen := make(map[string]struct{})
+	var paths []string
+	_ = ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
+		image, ok := node.(*ast.Image)
+		if !entering || !ok {
+			return ast.WalkContinue, nil
+		}
+		path, ok := localMediaPath(string(image.Destination), deckDirectory)
+		if !ok {
+			return ast.WalkContinue, nil
+		}
+		if _, exists := seen[path]; exists {
+			return ast.WalkContinue, nil
+		}
+		seen[path] = struct{}{}
+		paths = append(paths, path)
+		return ast.WalkContinue, nil
+	})
+	return paths
+}
+
+func localMediaPath(destination, deckDirectory string) (string, bool) {
+	parsed, err := url.Parse(destination)
+	if err != nil || (parsed.Scheme == "file" && parsed.Host != "" && parsed.Host != "localhost") || (parsed.Scheme != "" && parsed.Scheme != "file") || (parsed.Host != "" && parsed.Scheme != "file") {
+		return "", false
+	}
+	path, err := url.PathUnescape(parsed.Path)
+	if err != nil || path == "" {
+		return "", false
+	}
+	path = filepath.FromSlash(path)
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(deckDirectory, path)
+	}
+	return path, true
+}
+
 func isExternalMediaDestination(destination, deckDirectory string) bool {
 	parsed, err := url.Parse(destination)
 	if err != nil || parsed.Scheme == "data" {
@@ -170,7 +214,7 @@ func pathIsOutsideDirectory(path, directory string) bool {
 	return err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator))
 }
 
-func embedLocalMedia(document ast.Node, deckDirectory string) error {
+func embedLocalMedia(document ast.Node, deckDirectory string, warnings io.Writer) error {
 	return ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
 		image, ok := node.(*ast.Image)
 		if !entering || !ok {
@@ -201,7 +245,18 @@ func embedLocalMedia(document ast.Node, deckDirectory string) error {
 		}
 		data, err := os.ReadFile(path)
 		if err != nil {
-			return ast.WalkStop, fmt.Errorf("read image %q: %w", destination, err)
+			// A local media reference can become stale while a deck is being
+			// edited. Leaving it out keeps the rest of the presentation usable;
+			// the server deliberately does not expose deck files for the browser
+			// to retry this request itself.
+			parent := image.Parent()
+			if parent != nil {
+				parent.RemoveChild(parent, image)
+			}
+			if warnings != nil {
+				fmt.Fprintf(warnings, "md-present: warning: skip local media %q: %v\n", destination, err)
+			}
+			return ast.WalkContinue, nil
 		}
 		contentType := mime.TypeByExtension(filepath.Ext(path))
 		if contentType == "" {
