@@ -70,12 +70,13 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
+          cache-dependency-path: cmd/md-present/web/pnpm-lock.yaml
 
       - name: Generate browser assets
         run: |
           pnpm install --frozen-lockfile --ignore-scripts
           pnpm run assets
+        working-directory: cmd/md-present/web
 
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7

@@ -9,8 +9,8 @@ Go 1.25, Node.js 24, and pnpm 11 are required.
 Build the current checkout for local development:
 
 ```sh
-pnpm install --frozen-lockfile --ignore-scripts
-pnpm run assets
+pnpm --dir cmd/md-present/web install --frozen-lockfile --ignore-scripts
+pnpm --dir cmd/md-present/web run assets
 go build -o md-present ./cmd/md-present
 ```
 
@@ -20,8 +20,8 @@ Git. Release binaries embed them, so Homebrew users do not need Node.js or pnpm.
 ## Standard validation
 
 ```sh
-pnpm install --frozen-lockfile --ignore-scripts
-pnpm run assets
+pnpm --dir cmd/md-present/web install --frozen-lockfile --ignore-scripts
+pnpm --dir cmd/md-present/web run assets
 gofmt -w ./cmd/md-present/*.go
 go vet ./...
 go test ./...

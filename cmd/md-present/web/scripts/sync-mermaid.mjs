@@ -2,9 +2,8 @@ import { copyFile, mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const mermaidPackage = resolve(root, "node_modules/mermaid");
-const webAssets = resolve(root, "cmd/md-present/web");
+const webAssets = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const mermaidPackage = resolve(webAssets, "node_modules/mermaid");
 
 await mkdir(webAssets, { recursive: true });
 await Promise.all([
