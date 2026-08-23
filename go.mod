@@ -2,7 +2,7 @@ module github.com/timonwd/md-present
 
 go 1.25.0
 
-toolchain go1.25.13
+toolchain go1.26.6
 
 require (
 	github.com/alecthomas/chroma/v2 v2.27.0
