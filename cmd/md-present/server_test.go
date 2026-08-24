@@ -40,8 +40,8 @@ A --&gt; B
 	if !strings.Contains(response.Body.String(), `class="overview-button"`) {
 		t.Fatal("GET / omitted overview control")
 	}
-	if !strings.Contains(response.Body.String(), `aria-keyshortcuts="O"`) {
-		t.Fatal("GET / omitted overview keyboard shortcut")
+	if !strings.Contains(response.Body.String(), `aria-keyshortcuts="O Escape"`) {
+		t.Fatal("GET / omitted keyboard shortcuts")
 	}
 	csp := response.Header().Get("Content-Security-Policy")
 	if csp == "" {
@@ -53,13 +53,13 @@ A --&gt; B
 	if !strings.Contains(csp, "media-src 'self' data: https: http:") {
 		t.Errorf("GET / does not permit local and remote video: %s", csp)
 	}
-	for _, expected := range []string{`class="language-mermaid"`, `/assets/mermaid.min.js`, `/assets/app.js`} {
+	for _, expected := range []string{`class="language-mermaid"`, `/assets/favicon.svg`, `/assets/mermaid.min.js`, `/assets/app.js`} {
 		if !strings.Contains(response.Body.String(), expected) {
 			t.Errorf("GET / omitted %q", expected)
 		}
 	}
 
-	for _, asset := range []string{"app.js", "style.css", "mermaid.min.js", "mermaid.LICENSE.txt"} {
+	for _, asset := range []string{"app.js", "style.css", "favicon.svg", "mermaid.min.js", "mermaid.LICENSE.txt"} {
 		assetRequest := httptest.NewRequest(http.MethodGet, "/assets/"+asset, nil)
 		assetRequest.Host = "127.0.0.1:38473"
 		assetResponse := httptest.NewRecorder()
@@ -69,7 +69,7 @@ A --&gt; B
 		}
 		if asset == "app.js" {
 			body := assetResponse.Body.String()
-			for _, expected := range []string{"requestFullscreen", "exitFullscreen", `securityLevel: "strict"`, `role", "alert"`, "language-mermaid", "mermaidConfigurationDirective", "Mermaid configuration directives are not supported.", "overflowWarningDuration", "scrollBy", "toggleOverview", `role", "grid"`, `role", "gridcell"`, "isMediaControl", "video, audio"} {
+			for _, expected := range []string{"requestFullscreen", "exitFullscreen", `securityLevel: "strict"`, `role", "alert"`, "language-mermaid", "mermaidConfigurationDirective", "Mermaid configuration directives are not supported.", "overflowWarningDuration", "scrollBy", "toggleOverview", "closePresentationTab", "window.close()", `role", "grid"`, `role", "gridcell"`, "isMediaControl", "video, audio"} {
 				if !strings.Contains(body, expected) {
 					t.Errorf("GET /assets/app.js omitted %q", expected)
 				}
@@ -86,6 +86,8 @@ A --&gt; B
 					t.Errorf("GET /assets/style.css still constrains content with %q", unwanted)
 				}
 			}
+		} else if asset == "favicon.svg" && !strings.Contains(assetResponse.Body.String(), `<svg`) {
+			t.Error("GET /assets/favicon.svg did not return SVG markup")
 		} else if asset == "mermaid.min.js" && !strings.Contains(assetResponse.Body.String(), `globalThis["mermaid"]`) {
 			t.Error("GET /assets/mermaid.min.js omitted Mermaid browser export")
 		} else if asset == "mermaid.LICENSE.txt" && !strings.Contains(assetResponse.Body.String(), "The MIT License (MIT)") {
@@ -99,6 +101,28 @@ A --&gt; B
 	handler.ServeHTTP(missingResponse, missingRequest)
 	if missingResponse.Code != http.StatusNotFound {
 		t.Fatalf("GET /source.md status = %d, want 404", missingResponse.Code)
+	}
+}
+
+func TestPresentationHandlerUsesExplicitTitle(t *testing.T) {
+	presentation := newPresentationState([]template.HTML{`<h1>Expected slide</h1>`})
+	handler := presentationHandler(presentation, newTabTracker(func() {}, time.Second), io.Discard, `Quarterly <Review>`)
+
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if got, want := response.Code, http.StatusOK; got != want {
+		t.Fatalf("GET / status = %d, want %d", got, want)
+	}
+	if !strings.Contains(response.Body.String(), "<title>Quarterly &lt;Review&gt;</title>") {
+		t.Fatalf("GET / did not render the explicit escaped title:\n%s", response.Body.String())
+	}
+}
+
+func TestPresentationTitleUsesMarkdownFilename(t *testing.T) {
+	if got, want := presentationTitle(filepath.Join("/tmp", "quarterly-review.md")), "quarterly-review.md"; got != want {
+		t.Fatalf("presentationTitle() = %q, want %q", got, want)
 	}
 }
 

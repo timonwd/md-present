@@ -382,6 +382,11 @@
     return target instanceof Element && Boolean(target.closest("video, audio"));
   }
 
+  function closePresentationTab() {
+    // Browsers ignore window.close() for tabs that were not opened by script.
+    window.close();
+  }
+
   function scrollActiveSlide(direction, key) {
     const slide = slides[current];
     if (!slide.classList.contains("has-overflow")) return false;
@@ -481,6 +486,9 @@
     } else if (event.key === "End") {
       event.preventDefault();
       show(slides.length - 1);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      closePresentationTab();
     }
   });
 

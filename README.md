@@ -109,6 +109,7 @@ Use a fenced `mermaid` block for diagrams. The bundled offline Mermaid runtime s
 | First / last slide | Home / End |
 | Toggle slide overview | Button in the upper-left corner or O |
 | Navigate / select in overview | Arrow keys / Enter |
+| Close presentation tab | Escape (when the browser permits script-closed tabs) |
 | Fullscreen | Button in the upper-right corner |
 
 Oversized slides scroll before navigation continues. Their content may be clipped when printed.
