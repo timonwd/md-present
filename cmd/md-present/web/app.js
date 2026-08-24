@@ -22,7 +22,28 @@
   let loadWarningActive = false;
   let loadWarningShown = false;
   const observedMedia = new WeakSet();
-  const overflowWarningDuration = 5000;
+const overflowWarningDuration = 5000;
+const updateNotice = document.querySelector(".update-notice");
+const updateNoticeText = updateNotice.querySelector(".update-notice__text");
+
+async function checkForUpdate() {
+  try {
+    const response = await fetch("/api/update");
+    if (response.status === 204) {
+      window.setTimeout(checkForUpdate, 500);
+      return;
+    }
+    if (!response.ok) return;
+    const update = await response.json();
+    if (!update.available) return;
+    updateNoticeText.textContent = `md-present ${update.version} is available — update with Homebrew`;
+    updateNotice.hidden = false;
+  } catch {
+    // The update notice is optional; keep presenting if the local server closes.
+  }
+}
+
+checkForUpdate();
   const overflowTransitionDuration = 180;
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
