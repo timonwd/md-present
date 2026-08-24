@@ -23,5 +23,10 @@ in this index.
   asks to change them.
 - Stage only intended paths or hunks. Do not commit or push unless explicitly
   requested.
+- When a feature or fix is requested to be merged to `main`, commit the scoped
+  change on its branch, push the branch, and create a pull request targeting
+  `main`. Include `Closes #<issue-number>` (or the equivalent GitHub closing
+  keyword) in the pull request body so the related issue closes automatically
+  when the pull request is merged.
 - Report validation results accurately, including checks blocked by the
   environment.
