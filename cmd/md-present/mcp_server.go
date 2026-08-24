@@ -32,6 +32,7 @@ type presentFileInput struct {
 
 type presentFileOutput struct {
 	PresentationURL  string   `json:"presentation_url,omitempty" jsonschema:"loopback URL of the browser presentation when it was opened"`
+	Error            string   `json:"error,omitempty" jsonschema:"error explaining why the presentation did not open"`
 	ApprovalRequired bool     `json:"approval_required,omitempty" jsonschema:"whether external media must be approved before the presentation can open"`
 	ExternalMedia    []string `json:"external_media,omitempty" jsonschema:"remote or outside-directory media references requiring explicit user approval"`
 	Warnings         []string `json:"warnings,omitempty" jsonschema:"rendering warnings detected before the presentation opened"`
@@ -74,6 +75,7 @@ func (m *mcpPresentationManager) present(_ context.Context, input presentFileInp
 	}
 	if references := externalMediaReferences(source, filepath.Dir(path)); len(references) > 0 && !input.AllowExternalMedia {
 		return presentFileOutput{
+			Error:            "allow_external_media is required because the presentation references external media",
 			ApprovalRequired: true,
 			ExternalMedia:    references,
 		}, nil
@@ -134,7 +136,7 @@ func newMCPHandler(presenter filePresenter, port int) http.Handler {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "present_file",
 		Title:       "Present Markdown File",
-		Description: "Open a local Markdown file as an md-present browser presentation. The file's directory is the root for relative media. When approval_required is true, show every external_media reference to the user and retry with allow_external_media only after approval.",
+		Description: "Open a local Markdown file as an md-present browser presentation. The file's directory is the root for relative media. A missing external-media trust flag returns a structured tool error; show every external_media reference to the user and retry with allow_external_media only after approval.",
 		Annotations: &mcp.ToolAnnotations{
 			DestructiveHint: &destructive,
 			OpenWorldHint:   &openWorld,
@@ -143,6 +145,9 @@ func newMCPHandler(presenter filePresenter, port int) http.Handler {
 		},
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, input presentFileInput) (*mcp.CallToolResult, presentFileOutput, error) {
 		output, err := presenter.present(ctx, input)
+		if output.ApprovalRequired && err == nil {
+			return &mcp.CallToolResult{IsError: true}, output, nil
+		}
 		return nil, output, err
 	})
 

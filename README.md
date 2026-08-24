@@ -52,7 +52,7 @@ md-present mcp install
 
 The command installs and starts a macOS LaunchAgent, then prints its Streamable HTTP endpoint. The default is `http://127.0.0.1:38473/mcp`; use `--port <port>` during installation when the default conflicts with another local service. Configure that URL in the MCP client.
 
-The server exposes `present_file`. Pass an absolute Markdown file path; its containing directory becomes the root for relative images and videos. The tool opens the presentation in the browser and returns its loopback URL. When remote media, absolute local media, or local media outside the file's directory is present, the first call completes with `approval_required: true` and the `external_media` references without opening a browser. The caller must show those references to the user and retry with `allow_external_media: true` only after explicit approval.
+The server exposes `present_file`. Pass an absolute Markdown file path; its containing directory becomes the root for relative images and videos. The tool opens the presentation in the browser and returns its loopback URL. When remote media, absolute local media, or local media outside the file's directory is present, the first call completes with a structured MCP tool error: `error` states that `allow_external_media` is required, `approval_required` is `true`, and `external_media` lists the blocked references. No browser opens. The caller must show those references to the user and retry with `allow_external_media: true` only after explicit approval.
 
 Remove and stop the service with:
 

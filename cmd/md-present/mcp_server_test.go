@@ -109,7 +109,7 @@ func TestMCPHandlerRejectsUntrustedHostAndOrigin(t *testing.T) {
 	}
 }
 
-func TestMCPHandlerReportsExternalMediaApprovalWithoutToolError(t *testing.T) {
+func TestMCPHandlerReturnsStructuredExternalMediaApprovalError(t *testing.T) {
 	directory := t.TempDir()
 	path := filepath.Join(directory, "deck.md")
 	remoteMedia := "https://example.com/image.png"
@@ -144,15 +144,44 @@ func TestMCPHandlerReportsExternalMediaApprovalWithoutToolError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("call present_file: %v", err)
 	}
-	if result.IsError {
-		t.Fatalf("approval requirement returned tool error: %+v", result.Content)
+	if !result.IsError {
+		t.Fatalf("approval requirement did not return a tool error: %+v", result.Content)
 	}
 	output, ok := result.StructuredContent.(map[string]any)
 	if !ok {
 		t.Fatalf("structured output = %#v", result.StructuredContent)
 	}
-	if output["approval_required"] != true || !strings.Contains(fmt.Sprint(output["external_media"]), remoteMedia) {
+	if !strings.Contains(fmt.Sprint(output["error"]), "allow_external_media is required") || output["approval_required"] != true || !strings.Contains(fmt.Sprint(output["external_media"]), remoteMedia) {
 		t.Fatalf("approval output = %#v", output)
+	}
+	if len(result.Content) != 1 {
+		t.Fatalf("approval content = %#v", result.Content)
+	}
+	textContent, ok := result.Content[0].(*mcp.TextContent)
+	if !ok || !strings.Contains(textContent.Text, "allow_external_media is required") {
+		t.Fatalf("approval content = %#v", result.Content)
+	}
+
+	rawRequest, err := http.NewRequestWithContext(callContext, http.MethodPost, server.URL+"/mcp", strings.NewReader(fmt.Sprintf(
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"present_file","arguments":{"path":%q}}}`,
+		path,
+	)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rawRequest.Header.Set("Content-Type", "application/json")
+	rawRequest.Header.Set("Accept", "application/json, text/event-stream")
+	rawResponse, err := server.Client().Do(rawRequest)
+	if err != nil {
+		t.Fatalf("raw HTTP tool call: %v", err)
+	}
+	defer rawResponse.Body.Close()
+	rawBody, err := io.ReadAll(rawResponse.Body)
+	if err != nil {
+		t.Fatalf("read raw HTTP tool response: %v", err)
+	}
+	if rawResponse.StatusCode != http.StatusOK || !strings.Contains(string(rawBody), `"isError":true`) || !strings.Contains(string(rawBody), "allow_external_media is required") {
+		t.Fatalf("raw HTTP response = %d %s", rawResponse.StatusCode, rawBody)
 	}
 }
 
@@ -170,7 +199,7 @@ func TestMCPPresentationManagerRequiresAbsolutePathAndMediaApproval(t *testing.T
 	if err != nil {
 		t.Fatalf("external media approval result: %v", err)
 	}
-	if !approval.ApprovalRequired || !strings.Contains(fmt.Sprint(approval.ExternalMedia), "https://example.com/image.png") {
+	if !strings.Contains(approval.Error, "allow_external_media is required") || !approval.ApprovalRequired || !strings.Contains(fmt.Sprint(approval.ExternalMedia), "https://example.com/image.png") {
 		t.Fatalf("external media approval = %+v", approval)
 	}
 
