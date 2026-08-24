@@ -119,6 +119,7 @@ func TestPresentationHandlerReportsAvailableUpdate(t *testing.T) {
 	)
 
 	request := httptest.NewRequest(http.MethodGet, "/api/update", nil)
+	request.Host = "127.0.0.1:38473"
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 
