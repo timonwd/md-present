@@ -5,6 +5,9 @@
     "helpers:pinGitHubActionDigests"
   ],
   "minimumReleaseAge": "7 days",
+  "lockFileMaintenance": {
+    "enabled": true
+  },
   "automerge": true,
   "platformAutomerge": true
 }
