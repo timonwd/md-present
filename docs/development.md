@@ -4,7 +4,7 @@ Run all commands from the repository root.
 
 ## Build from source
 
-Go 1.27.0, Node.js 24, and pnpm 11 are required.
+Go 1.26.6, Node.js 24, and pnpm 11 are required.
 
 Build the current checkout for local development:
 

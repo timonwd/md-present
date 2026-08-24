@@ -1,6 +1,6 @@
 module github.com/timonwd/md-present
 
-go 1.27.0
+go 1.26.6
 
 require (
 	github.com/alecthomas/chroma/v2 v2.27.0
