@@ -109,6 +109,7 @@ func TestPresentationHandlerUsesExplicitTitle(t *testing.T) {
 	handler := presentationHandler(presentation, newTabTracker(func() {}, time.Second), io.Discard, `Quarterly <Review>`)
 
 	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request.Host = "127.0.0.1:38473"
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 
