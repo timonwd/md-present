@@ -30,6 +30,24 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	case actionVersion:
 		fmt.Fprintf(stdout, "md-present %s\n", version)
 		return 0
+	case actionMCPServe:
+		if err := serveMCP(config.mcpPort, stdout, stderr); err != nil {
+			fmt.Fprintf(stderr, "md-present: MCP server: %v\n", err)
+			return 1
+		}
+		return 0
+	case actionMCPInstall:
+		if err := installMCPLaunchAgent(config.mcpPort, stdout); err != nil {
+			fmt.Fprintf(stderr, "md-present: install MCP server: %v\n", err)
+			return 1
+		}
+		return 0
+	case actionMCPUninstall:
+		if err := uninstallMCPLaunchAgent(stdout, stderr); err != nil {
+			fmt.Fprintf(stderr, "md-present: uninstall MCP server: %v\n", err)
+			return 1
+		}
+		return 0
 	}
 
 	path, err := resolveMarkdownPath(config.markdownFile)
@@ -69,13 +87,18 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 }
 
 func printHelp(w io.Writer) {
-	fmt.Fprintln(w, `Usage: md-present [--no-open] [--allow-external-media] <markdown-file>
+	fmt.Fprintln(w, `Usage:
+  md-present [--no-open] [--allow-external-media] <markdown-file>
+  md-present mcp install [--port <port>]
+  md-present mcp uninstall
+  md-present mcp serve [--port <port>]
 
 Render a Markdown file as a local browser presentation.
 
 Options:
   --no-open               Start the server without opening a browser
   --allow-external-media  Trust remote and outside-deck media without prompting
+  --port <port>            MCP loopback port (default: 38473)
   -h, --help              Show this help
   --version               Show the version`)
 }

@@ -25,6 +25,7 @@ A --&gt; B
 	handler := presentationHandler(presentation, tracker, io.Discard)
 
 	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request.Host = "127.0.0.1:38473"
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "Expected slide") {
@@ -60,6 +61,7 @@ A --&gt; B
 
 	for _, asset := range []string{"app.js", "style.css", "mermaid.min.js", "mermaid.LICENSE.txt"} {
 		assetRequest := httptest.NewRequest(http.MethodGet, "/assets/"+asset, nil)
+		assetRequest.Host = "127.0.0.1:38473"
 		assetResponse := httptest.NewRecorder()
 		handler.ServeHTTP(assetResponse, assetRequest)
 		if assetResponse.Code != http.StatusOK {
@@ -92,6 +94,7 @@ A --&gt; B
 	}
 
 	missingRequest := httptest.NewRequest(http.MethodGet, "/source.md", nil)
+	missingRequest.Host = "127.0.0.1:38473"
 	missingResponse := httptest.NewRecorder()
 	handler.ServeHTTP(missingResponse, missingRequest)
 	if missingResponse.Code != http.StatusNotFound {
@@ -111,7 +114,8 @@ func TestPresentationHandlerReportsOverflow(t *testing.T) {
 	for _, body := range bodies {
 		request := httptest.NewRequest(http.MethodPost, "/api/overflow", strings.NewReader(body))
 		request.Header.Set("Content-Type", "application/json")
-		request.Header.Set("Origin", "http://example.com")
+		request.Host = "127.0.0.1:38473"
+		request.Header.Set("Origin", "http://127.0.0.1:38473")
 		response := httptest.NewRecorder()
 		handler.ServeHTTP(response, request)
 		if response.Code != http.StatusNoContent {
@@ -130,12 +134,26 @@ func TestPresentationHandlerRejectsInvalidOverflowReport(t *testing.T) {
 	handler := presentationHandler(presentation, newTabTracker(func() {}, time.Second), io.Discard)
 	request := httptest.NewRequest(http.MethodPost, "/api/overflow", strings.NewReader(`{"revision":1,"slides":[1],"stageWidth":1280,"stageHeight":720}`))
 	request.Header.Set("Content-Type", "application/json")
+	request.Host = "127.0.0.1:38473"
 	request.Header.Set("Origin", "https://example.com")
 	response := httptest.NewRecorder()
 
 	handler.ServeHTTP(response, request)
 	if response.Code != http.StatusForbidden {
 		t.Fatalf("cross-origin POST /api/overflow status = %d, want %d", response.Code, http.StatusForbidden)
+	}
+}
+
+func TestPresentationHandlerRejectsForeignHost(t *testing.T) {
+	presentation := newPresentationState([]template.HTML{"<h1>One</h1>"})
+	handler := presentationHandler(presentation, newTabTracker(func() {}, time.Second), io.Discard)
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request.Host = "attacker.example:38473"
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("foreign Host GET / status = %d, want %d", response.Code, http.StatusForbidden)
 	}
 }
 
@@ -197,6 +215,43 @@ func TestPresentationServerCancelsSessionStreamDuringShutdown(t *testing.T) {
 		t.Fatalf("shutdown with an active session stream: %v", err)
 	}
 	<-serverErrors
+}
+
+func TestStartPresentationServesAndStopsWithParentContext(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "slides.md")
+	if err := os.WriteFile(path, []byte("# Expected slide"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	slides, err := renderSlides([]byte("# Expected slide"), directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	var stdout bytes.Buffer
+	presentation, err := startPresentation(ctx, path, slides, false, &stdout, io.Discard)
+	if err != nil {
+		t.Fatalf("startPresentation() error: %v", err)
+	}
+	response, err := http.Get(presentation.url)
+	if err != nil {
+		t.Fatalf("GET presentation: %v", err)
+	}
+	body, err := io.ReadAll(response.Body)
+	_ = response.Body.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode != http.StatusOK || !strings.Contains(string(body), "Expected slide") {
+		t.Fatalf("GET presentation status %d, body:\n%s", response.StatusCode, body)
+	}
+	if stdout.String() != presentation.url+"\n" {
+		t.Fatalf("presentation stdout = %q, want %q", stdout.String(), presentation.url+"\n")
+	}
+	cancel()
+	if err := presentation.wait(); err != nil {
+		t.Fatalf("presentation shutdown: %v", err)
+	}
 }
 
 func TestPresentationStatePublishesUpdates(t *testing.T) {

@@ -69,6 +69,15 @@ type overflowReporter struct {
 	seen     map[string]struct{}
 }
 
+type runningPresentation struct {
+	url  string
+	done <-chan error
+}
+
+func (p *runningPresentation) wait() error {
+	return <-p.done
+}
+
 func newOverflowReporter(writer io.Writer) *overflowReporter {
 	return &overflowReporter{writer: writer, seen: make(map[string]struct{})}
 }
@@ -284,6 +293,10 @@ func presentationHandler(presentation *presentationState, tracker *tabTracker, d
 	})
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !allowedPresentationHost(r.Host) {
+			http.Error(w, "invalid Host header", http.StatusForbidden)
+			return
+		}
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.Header().Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data: https: http:; media-src 'self' data: https: http:; style-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
@@ -292,13 +305,23 @@ func presentationHandler(presentation *presentationState, tracker *tabTracker, d
 }
 
 func servePresentation(markdownPath string, slides []template.HTML, noOpen bool, stdout, stderr io.Writer) error {
-	listener, err := net.Listen("tcp4", "127.0.0.1:0")
-	if err != nil {
-		return fmt.Errorf("start local server: %w", err)
-	}
-
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	presentation, err := startPresentation(ctx, markdownPath, slides, !noOpen, stdout, stderr)
+	if err != nil {
+		return err
+	}
+	return presentation.wait()
+}
+
+func startPresentation(parent context.Context, markdownPath string, slides []template.HTML, open bool, stdout, stderr io.Writer) (*runningPresentation, error) {
+	listener, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		return nil, fmt.Errorf("start local server: %w", err)
+	}
+
+	ctx, stop := context.WithCancel(parent)
 	tracker := newTabTracker(stop, tabCloseGrace)
 	presentation := newPresentationState(slides)
 	server := &http.Server{
@@ -314,30 +337,45 @@ func servePresentation(markdownPath string, slides []template.HTML, noOpen bool,
 	go watchPresentation(ctx, newPresentationWatcher(markdownPath), presentation, liveReloadPoll, stderr)
 
 	url := "http://" + listener.Addr().String() + "/"
-	fmt.Fprintln(stdout, url)
-	if !noOpen {
+	if stdout != nil {
+		fmt.Fprintln(stdout, url)
+	}
+	if open {
 		if err := openBrowser(url); err != nil {
 			stop()
 			shutdownServer(server)
 			<-serverErrors
-			return fmt.Errorf("open browser: %w", err)
+			return nil, fmt.Errorf("open browser: %w", err)
 		}
 	}
 
-	select {
-	case err := <-serverErrors:
-		if !errors.Is(err, http.ErrServerClosed) {
-			return fmt.Errorf("serve presentation: %w", err)
+	done := make(chan error, 1)
+	go func() {
+		defer stop()
+		select {
+		case err := <-serverErrors:
+			if !errors.Is(err, http.ErrServerClosed) {
+				done <- fmt.Errorf("serve presentation: %w", err)
+				return
+			}
+			done <- nil
+		case <-ctx.Done():
+			shutdownServer(server)
+			err := <-serverErrors
+			if err != nil && !errors.Is(err, http.ErrServerClosed) {
+				done <- fmt.Errorf("serve presentation: %w", err)
+				return
+			}
+			done <- nil
 		}
-		return nil
-	case <-ctx.Done():
-		shutdownServer(server)
-		err := <-serverErrors
-		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			return fmt.Errorf("serve presentation: %w", err)
-		}
-		return nil
-	}
+	}()
+
+	return &runningPresentation{url: url, done: done}, nil
+}
+
+func allowedPresentationHost(value string) bool {
+	host, _, err := net.SplitHostPort(value)
+	return err == nil && (host == "127.0.0.1" || host == "localhost")
 }
 
 func newPresentationWatcher(markdownPath string) *presentationWatcher {

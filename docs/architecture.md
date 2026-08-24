@@ -46,6 +46,35 @@ presentation. Keep the implementation direct and readable.
 - Accept browser layout diagnostics only as bounded, same-origin JSON. Treat
   them as viewport-specific observations and keep the presentation URL as the
   only normal stdout output.
+- Validate loopback Host headers on both presentation and MCP HTTP servers so
+  DNS rebinding cannot turn a local endpoint into a same-origin remote one.
+
+## MCP service boundary
+
+The optional MCP server is a separate, long-lived process managed by a macOS
+LaunchAgent. Keep its stable Streamable HTTP listener separate from the
+ephemeral presentation listeners:
+
+- Bind the MCP endpoint only to `127.0.0.1` and require the configured port in
+  Host and Origin headers. Do not enable CORS or non-loopback listening.
+- Keep the transport stateless and use the official MCP Go SDK rather than
+  maintaining protocol framing in this repository.
+- Expose file presentation through `present_file`. Require an absolute regular
+  file path, resolve symlinks, and use the resolved file's containing directory
+  as the deck root.
+- Preserve external-media consent. A first call reports remote and
+  outside-directory references; only an explicit `allow_external_media` retry
+  may bypass that report.
+- Limit concurrently running MCP-created presentations. Each presentation
+  retains its own live-reload watcher, loopback listener, last-tab grace period,
+  and browser lifecycle.
+- Treat all same-user local processes as trusted. The MCP server is intentionally
+  unauthenticated for clients that cannot send authorization headers; this is
+  acceptable only while loopback binding and Host/Origin validation remain
+  mandatory.
+- Keep LaunchAgent installation and removal explicit and reversible. The plist
+  points to the invoked executable path so Homebrew's stable binary symlink can
+  survive upgrades.
 
 ## Coupled browser behavior
 

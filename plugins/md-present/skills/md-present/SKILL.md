@@ -32,6 +32,12 @@ Fenced Mermaid diagrams and recognized code languages render locally from embedd
 
 ## Run the presentation
 
+When the client provides the md-present MCP `present_file` tool, prefer it when
+shell execution is unavailable. Pass an absolute Markdown path. The file's
+containing directory is the root for relative media. If the tool reports
+external media, show the listed references to the user and retry with
+`allow_external_media` only after explicit approval.
+
 Use:
 
 ```text
