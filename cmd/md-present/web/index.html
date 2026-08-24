@@ -11,10 +11,11 @@
   <body data-revision="{{.Revision}}">
     <main class="deck" id="slide-deck" aria-live="polite" aria-keyshortcuts="O Escape">
       {{range $index, $slide := .Slides}}
-      <section class="slide" id="slide-{{inc $index}}" aria-label="Slide {{inc $index}} of {{len $.Slides}}">
+      <section class="slide" id="slide-{{inc $index}}" aria-label="Slide {{inc $index}} of {{len $.Slides}}"{{if $slide.Hidden}} data-hidden="true"{{end}}>
         <div class="slide__scroller">
-          <div class="slide__content">{{$slide}}</div>
+          <div class="slide__content">{{$slide.HTML}}</div>
         </div>
+        {{if $slide.Hidden}}<span class="slide__hidden-label">Hidden from presentation</span>{{end}}
       </section>
       {{end}}
     </main>
@@ -40,7 +41,7 @@
       </svg>
       <span class="overflow-warning__text"></span>
     </button>
-    <div class="progress" aria-hidden="true"><span id="current">1</span><span class="progress__rule"></span><span>{{len .Slides}}</span></div>
+    <div class="progress" aria-hidden="true"><span id="current">1</span><span class="progress__rule"></span><span>{{.VisibleSlides}}</span></div>
     <script defer src="/assets/mermaid.min.js"></script>
     <script defer src="/assets/app.js"></script>
   </body>

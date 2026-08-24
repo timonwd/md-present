@@ -75,6 +75,30 @@ Before a deck with remote media or local media outside its folder opens, md-pres
 Use `md-present --no-open plan.md` to start without opening a browser.
 Press Ctrl+C in the terminal to stop the process.
 
+### Hidden slides
+
+To keep a slide out of normal presentation navigation, place `hidden: true` in
+frontmatter immediately before that slide. The slide remains available in the
+overview, where it is labelled as hidden and can be selected for inspection.
+
+```md
+# Opening slide
+
+---
+hidden: true
+---
+# Appendix for review
+
+---
+
+# Closing slide
+```
+
+Right/left navigation, Home/End, slide clicks, and the initial URL route skip
+hidden slides. The overview still includes them so they can be reviewed without
+making them part of the normal presentation flow. Set `hidden: false` to make a
+slide explicit in generated Markdown, although visible is the default.
+
 ### Mermaid diagrams
 
 Use a fenced `mermaid` block for diagrams. The bundled offline Mermaid runtime supports flowcharts, sequence, class, state, entity-relationship, timeline, mind map, and architecture diagrams. Other Mermaid diagram types may also render, but are not part of the compatibility baseline. For syntax and examples, see the [Mermaid documentation](https://mermaid.ai/open-source/intro/syntax-reference.html).
