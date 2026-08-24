@@ -75,6 +75,8 @@ Before a deck with remote media or local media outside its folder opens, md-pres
 Use `md-present --no-open plan.md` to start without opening a browser.
 Press Ctrl+C in the terminal to stop the process.
 
+When a network connection is available, md-present also checks GitHub Releases in the background. If a newer version exists, it shows an update notice in the presentation and prints the Homebrew upgrade command to stderr; the check is optional and never blocks presenting offline.
+
 ### Mermaid diagrams
 
 Use a fenced `mermaid` block for diagrams. The bundled offline Mermaid runtime supports flowcharts, sequence, class, state, entity-relationship, timeline, mind map, and architecture diagrams. Other Mermaid diagram types may also render, but are not part of the compatibility baseline. For syntax and examples, see the [Mermaid documentation](https://mermaid.ai/open-source/intro/syntax-reference.html).

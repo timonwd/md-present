@@ -190,6 +190,14 @@ func (t *tabTracker) connected() func() {
 }
 
 func presentationHandler(presentation *presentationState, tracker *tabTracker, diagnostics io.Writer, titles ...string) http.Handler {
+	return presentationHandlerWithUpdate(presentation, tracker, diagnostics, nil, titles...)
+}
+
+func presentationHandlerWithUpdate(presentation *presentationState, tracker *tabTracker, diagnostics io.Writer, updates *updateState, titles ...string) http.Handler {
+	if updates == nil {
+		updates = newUpdateState()
+		updates.set("")
+	}
 	title := "md-present"
 	if len(titles) > 0 && titles[0] != "" {
 		title = titles[0]
@@ -279,6 +287,17 @@ func presentationHandler(presentation *presentationState, tracker *tabTracker, d
 			}
 		}
 	})
+	mux.HandleFunc("GET /api/update", func(w http.ResponseWriter, _ *http.Request) {
+		status, done := updates.snapshot()
+		if !done {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(status); err != nil {
+			return
+		}
+	})
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
@@ -306,8 +325,9 @@ func servePresentation(markdownPath string, slides []template.HTML, noOpen bool,
 	defer stop()
 	tracker := newTabTracker(stop, tabCloseGrace)
 	presentation := newPresentationState(slides)
+	updates := newUpdateState()
 	server := &http.Server{
-		Handler:           presentationHandler(presentation, tracker, stderr, presentationTitle(markdownPath)),
+		Handler:           presentationHandlerWithUpdate(presentation, tracker, stderr, updates, presentationTitle(markdownPath)),
 		BaseContext:       func(net.Listener) context.Context { return ctx },
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       30 * time.Second,
@@ -317,6 +337,15 @@ func servePresentation(markdownPath string, slides []template.HTML, noOpen bool,
 		serverErrors <- server.Serve(listener)
 	}()
 	go watchPresentation(ctx, newPresentationWatcher(markdownPath), presentation, liveReloadPoll, stderr)
+	go func() {
+		checkContext, cancel := context.WithTimeout(ctx, 3*time.Second)
+		defer cancel()
+		availableVersion, err := checkForUpdate(checkContext, http.DefaultClient, version)
+		if err == nil && availableVersion != "" {
+			fmt.Fprintf(stderr, "md-present: version %s is available; run brew upgrade --cask md-present to update\n", availableVersion)
+		}
+		updates.set(availableVersion)
+	}()
 
 	url := "http://" + listener.Addr().String() + "/"
 	fmt.Fprintln(stdout, url)
