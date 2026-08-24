@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-var version = "0.2.7"
+var version = "0.2.8"
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
