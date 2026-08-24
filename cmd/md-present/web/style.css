@@ -16,7 +16,7 @@
   --syntax-variable: #953800;
   --syntax-comment: #57606a;
   --shadow: 0 2rem 5rem rgb(20 25 38 / 14%);
-  --stage-gutter: clamp(0.5rem, 2vw, 2rem);
+  --stage-gutter: clamp(1rem, 4vw, 3.5rem);
   --content-gutter: clamp(1rem, 3cqw, 3rem);
   font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
