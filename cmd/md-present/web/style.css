@@ -16,6 +16,8 @@
   --syntax-variable: #953800;
   --syntax-comment: #57606a;
   --shadow: 0 2rem 5rem rgb(20 25 38 / 14%);
+  --stage-gutter: clamp(0.5rem, 2vw, 2rem);
+  --content-gutter: clamp(1rem, 3cqw, 3rem);
   font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
 }
@@ -33,14 +35,17 @@ body {
 .deck {
   display: grid;
   min-height: 100svh;
-  padding: clamp(1rem, 4vw, 3.5rem);
+  padding: var(--stage-gutter);
   place-items: center;
 }
 
 .slide {
   position: relative;
   display: none;
-  width: min(calc(100vw - clamp(2rem, 8vw, 7rem)), calc((100svh - clamp(2rem, 8vw, 7rem)) * 16 / 9));
+  width: min(
+    calc(100vw - var(--stage-gutter) - var(--stage-gutter)),
+    calc((100svh - var(--stage-gutter) - var(--stage-gutter)) * 16 / 9)
+  );
   aspect-ratio: 16 / 9;
   container-type: size;
   overflow: hidden;
@@ -87,7 +92,7 @@ body.is-overview { overflow: auto; }
 
 .deck.is-overview .slide__scroller,
 .deck.is-overview .slide.has-overflow .slide__scroller { overflow: hidden; }
-.deck.is-overview .slide__content { padding: 6.2cqw; font-size: 1.55cqw; pointer-events: none; }
+.deck.is-overview .slide__content { padding: 3cqw; font-size: 1.55cqw; pointer-events: none; }
 .deck.is-overview h1 { font-size: 5.3cqw; }
 .deck.is-overview h2 { font-size: 3.8cqw; }
 .deck.is-overview h3 { font-size: 2.4cqw; }
@@ -130,30 +135,29 @@ body.is-overview { overflow: auto; }
 
 .slide__content {
   width: 100%;
+  min-width: 0;
   margin: auto 0;
-  padding: clamp(2rem, 6.2vw, 7rem);
-  padding: clamp(2rem, 6.2cqw, 7rem);
+  padding: var(--content-gutter);
   font-size: clamp(0.85rem, 1.55vw, 1.85rem);
   font-size: clamp(0.85rem, 1.55cqw, 1.85rem);
   line-height: 1.5;
+  overflow-wrap: normal;
+  hyphens: manual;
 }
 
 h1, h2, h3 {
   margin: 0 0 0.65em;
   letter-spacing: -0.035em;
   line-height: 1.05;
-  text-wrap: balance;
+  text-wrap: wrap;
 }
 
-h1, h2 { max-width: 18ch; }
-h3 { max-width: 100%; }
 h1 { font-size: clamp(2.1rem, 5.3vw, 6.2rem); }
 h1 { font-size: clamp(2.1rem, 5.3cqw, 6.2rem); }
 h2 { font-size: clamp(1.7rem, 3.8vw, 4.5rem); }
 h2 { font-size: clamp(1.7rem, 3.8cqw, 4.5rem); }
 h3 { font-size: clamp(1.3rem, 2.4vw, 2.8rem); }
 h3 { font-size: clamp(1.3rem, 2.4cqw, 2.8rem); }
-p, ul, ol, blockquote, pre { max-width: 48ch; }
 p { margin: 0.7em 0; }
 ul, ol { padding-left: 1.25em; }
 li { margin: 0.28em 0; padding-left: 0.18em; }
@@ -162,7 +166,6 @@ strong { font-weight: 700; }
 
 table {
   width: 100%;
-  max-width: 48ch;
   border-collapse: collapse;
   font-size: 0.84em;
   line-height: 1.3;
@@ -424,7 +427,7 @@ video { display: block; max-width: 100%; max-height: 48vh; max-height: 48cqh; ob
 
 .mermaid-error {
   display: grid;
-  width: min(100%, 48ch);
+  width: 100%;
   gap: 0.3em;
   padding: 0.8em 1em;
   border: 1px solid #b33b3b;
@@ -435,7 +438,7 @@ video { display: block; max-width: 100%; max-height: 48vh; max-height: 48cqh; ob
 }
 
 .mermaid-error span { color: var(--muted); white-space: pre-wrap; }
-.mermaid-diagram .mermaid-error + pre { width: min(100%, 48ch); margin-top: 0.6em; }
+.mermaid-diagram .mermaid-error + pre { width: 100%; margin-top: 0.6em; }
 
 @media print {
   .mermaid-diagram { max-height: 58vh; overflow: hidden; }
