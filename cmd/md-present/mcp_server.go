@@ -31,8 +31,10 @@ type presentFileInput struct {
 }
 
 type presentFileOutput struct {
-	PresentationURL string   `json:"presentation_url" jsonschema:"loopback URL of the browser presentation"`
-	Warnings        []string `json:"warnings,omitempty" jsonschema:"rendering warnings detected before the presentation opened"`
+	PresentationURL  string   `json:"presentation_url,omitempty" jsonschema:"loopback URL of the browser presentation when it was opened"`
+	ApprovalRequired bool     `json:"approval_required,omitempty" jsonschema:"whether external media must be approved before the presentation can open"`
+	ExternalMedia    []string `json:"external_media,omitempty" jsonschema:"remote or outside-directory media references requiring explicit user approval"`
+	Warnings         []string `json:"warnings,omitempty" jsonschema:"rendering warnings detected before the presentation opened"`
 }
 
 type filePresenter interface {
@@ -71,10 +73,10 @@ func (m *mcpPresentationManager) present(_ context.Context, input presentFileInp
 		return presentFileOutput{}, fmt.Errorf("read %q: %w", input.Path, err)
 	}
 	if references := externalMediaReferences(source, filepath.Dir(path)); len(references) > 0 && !input.AllowExternalMedia {
-		return presentFileOutput{}, fmt.Errorf(
-			"external media requires explicit user approval; retry with allow_external_media=true only after reviewing: %s",
-			strings.Join(references, ", "),
-		)
+		return presentFileOutput{
+			ApprovalRequired: true,
+			ExternalMedia:    references,
+		}, nil
 	}
 
 	var warnings bytes.Buffer
@@ -132,7 +134,7 @@ func newMCPHandler(presenter filePresenter, port int) http.Handler {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "present_file",
 		Title:       "Present Markdown File",
-		Description: "Open a local Markdown file as an md-present browser presentation. The file's directory is the root for relative media. Set allow_external_media only after the user approves every reported remote or outside-directory media reference.",
+		Description: "Open a local Markdown file as an md-present browser presentation. The file's directory is the root for relative media. When approval_required is true, show every external_media reference to the user and retry with allow_external_media only after approval.",
 		Annotations: &mcp.ToolAnnotations{
 			DestructiveHint: &destructive,
 			OpenWorldHint:   &openWorld,

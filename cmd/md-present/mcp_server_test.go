@@ -109,6 +109,53 @@ func TestMCPHandlerRejectsUntrustedHostAndOrigin(t *testing.T) {
 	}
 }
 
+func TestMCPHandlerReportsExternalMediaApprovalWithoutToolError(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "deck.md")
+	remoteMedia := "https://example.com/image.png"
+	if err := os.WriteFile(path, []byte("# Deck\n\n![Remote]("+remoteMedia+")"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	manager := newMCPPresentationManager(t.Context(), io.Discard)
+	manager.start = func(context.Context, string, []template.HTML, bool, io.Writer, io.Writer) (*runningPresentation, error) {
+		t.Fatal("presentation started before external media approval")
+		return nil, nil
+	}
+	server := newIPv4TestServer(t, func(port int) http.Handler { return newMCPHandler(manager, port) })
+	defer server.Close()
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "md-present-test", Version: "1.0.0"}, nil)
+	session, err := client.Connect(t.Context(), &mcp.StreamableClientTransport{
+		Endpoint:             server.URL + "/mcp",
+		DisableStandaloneSSE: true,
+	}, nil)
+	if err != nil {
+		t.Fatalf("connect MCP client: %v", err)
+	}
+	defer session.Close()
+
+	callContext, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	result, err := session.CallTool(callContext, &mcp.CallToolParams{
+		Name:      "present_file",
+		Arguments: map[string]any{"path": path},
+	})
+	if err != nil {
+		t.Fatalf("call present_file: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("approval requirement returned tool error: %+v", result.Content)
+	}
+	output, ok := result.StructuredContent.(map[string]any)
+	if !ok {
+		t.Fatalf("structured output = %#v", result.StructuredContent)
+	}
+	if output["approval_required"] != true || !strings.Contains(fmt.Sprint(output["external_media"]), remoteMedia) {
+		t.Fatalf("approval output = %#v", output)
+	}
+}
+
 func TestMCPPresentationManagerRequiresAbsolutePathAndMediaApproval(t *testing.T) {
 	directory := t.TempDir()
 	path := filepath.Join(directory, "deck.md")
@@ -119,8 +166,12 @@ func TestMCPPresentationManagerRequiresAbsolutePathAndMediaApproval(t *testing.T
 	if _, err := manager.present(t.Context(), presentFileInput{Path: "deck.md"}); err == nil || !strings.Contains(err.Error(), "absolute") {
 		t.Fatalf("relative path error = %v", err)
 	}
-	if _, err := manager.present(t.Context(), presentFileInput{Path: path}); err == nil || !strings.Contains(err.Error(), "https://example.com/image.png") {
-		t.Fatalf("external media error = %v", err)
+	approval, err := manager.present(t.Context(), presentFileInput{Path: path})
+	if err != nil {
+		t.Fatalf("external media approval result: %v", err)
+	}
+	if !approval.ApprovalRequired || !strings.Contains(fmt.Sprint(approval.ExternalMedia), "https://example.com/image.png") {
+		t.Fatalf("external media approval = %+v", approval)
 	}
 
 	done := make(chan error, 1)

@@ -63,8 +63,9 @@ ephemeral presentation listeners:
   file path, resolve symlinks, and use the resolved file's containing directory
   as the deck root.
 - Preserve external-media consent. A first call reports remote and
-  outside-directory references; only an explicit `allow_external_media` retry
-  may bypass that report.
+  outside-directory references as a completed `approval_required` result, not
+  a tool error; only an explicit `allow_external_media` retry may bypass that
+  report.
 - Limit concurrently running MCP-created presentations. Each presentation
   retains its own live-reload watcher, loopback listener, last-tab grace period,
   and browser lifecycle.
