@@ -39,14 +39,15 @@ const (
 )
 
 type pageData struct {
-	Slides   []template.HTML
-	Revision uint64
-	Title    string
+	Slides        []presentationSlide
+	VisibleSlides int
+	Revision      uint64
+	Title         string
 }
 
 type presentationState struct {
 	mu          sync.RWMutex
-	slides      []template.HTML
+	slides      []presentationSlide
 	revision    uint64
 	subscribers map[chan uint64]struct{}
 }
@@ -113,6 +114,14 @@ func formatSlideNumbers(slides []int) string {
 }
 
 func newPresentationState(slides []template.HTML) *presentationState {
+	presentationSlides := make([]presentationSlide, len(slides))
+	for index, slide := range slides {
+		presentationSlides[index] = presentationSlide{HTML: slide}
+	}
+	return newPresentationStateWithSlides(presentationSlides)
+}
+
+func newPresentationStateWithSlides(slides []presentationSlide) *presentationState {
 	return &presentationState{
 		slides:      slides,
 		revision:    1,
@@ -120,13 +129,21 @@ func newPresentationState(slides []template.HTML) *presentationState {
 	}
 }
 
-func (p *presentationState) snapshot() ([]template.HTML, uint64) {
+func (p *presentationState) snapshot() ([]presentationSlide, uint64) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.slides, p.revision
 }
 
 func (p *presentationState) update(slides []template.HTML) bool {
+	presentationSlides := make([]presentationSlide, len(slides))
+	for index, slide := range slides {
+		presentationSlides[index] = presentationSlide{HTML: slide}
+	}
+	return p.updatePresentationSlides(presentationSlides)
+}
+
+func (p *presentationState) updatePresentationSlides(slides []presentationSlide) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if slices.Equal(p.slides, slides) {
@@ -141,6 +158,16 @@ func (p *presentationState) update(slides []template.HTML) bool {
 		}
 	}
 	return true
+}
+
+func visibleSlideCount(slides []presentationSlide) int {
+	count := 0
+	for _, slide := range slides {
+		if !slide.Hidden {
+			count++
+		}
+	}
+	return count
 }
 
 func (p *presentationState) subscribe() (<-chan uint64, uint64, func()) {
@@ -283,7 +310,7 @@ func presentationHandler(presentation *presentationState, tracker *tabTracker, d
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
 		slides, revision := presentation.snapshot()
-		if err := pageTemplate.Execute(w, pageData{Slides: slides, Revision: revision, Title: title}); err != nil {
+		if err := pageTemplate.Execute(w, pageData{Slides: slides, VisibleSlides: visibleSlideCount(slides), Revision: revision, Title: title}); err != nil {
 			http.Error(w, "render presentation", http.StatusInternalServerError)
 		}
 	})
@@ -297,6 +324,14 @@ func presentationHandler(presentation *presentationState, tracker *tabTracker, d
 }
 
 func servePresentation(markdownPath string, slides []template.HTML, noOpen bool, stdout, stderr io.Writer) error {
+	presentationSlides := make([]presentationSlide, len(slides))
+	for index, slide := range slides {
+		presentationSlides[index] = presentationSlide{HTML: slide}
+	}
+	return servePresentationSlides(markdownPath, presentationSlides, noOpen, stdout, stderr)
+}
+
+func servePresentationSlides(markdownPath string, slides []presentationSlide, noOpen bool, stdout, stderr io.Writer) error {
 	listener, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
 		return fmt.Errorf("start local server: %w", err)
@@ -305,7 +340,7 @@ func servePresentation(markdownPath string, slides []template.HTML, noOpen bool,
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	tracker := newTabTracker(stop, tabCloseGrace)
-	presentation := newPresentationState(slides)
+	presentation := newPresentationStateWithSlides(slides)
 	server := &http.Server{
 		Handler:           presentationHandler(presentation, tracker, stderr, presentationTitle(markdownPath)),
 		BaseContext:       func(net.Listener) context.Context { return ctx },
@@ -412,11 +447,11 @@ func refreshPresentationWithWarnings(markdownPath string, presentation *presenta
 	if err != nil {
 		return err
 	}
-	slides, err := renderSlidesWithWarnings(source, filepath.Dir(markdownPath), warnings)
+	slides, err := renderPresentationSlidesWithWarnings(source, filepath.Dir(markdownPath), warnings)
 	if err != nil {
 		return err
 	}
-	presentation.update(slides)
+	presentation.updatePresentationSlides(slides)
 	return nil
 }
 

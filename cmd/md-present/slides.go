@@ -33,32 +33,98 @@ func newMarkdownRenderer() goldmark.Markdown {
 }
 
 func splitSlides(source string) []string {
+	markdownSlides := parseSlides(source)
+	slides := make([]string, len(markdownSlides))
+	for index, slide := range markdownSlides {
+		slides[index] = slide.source
+	}
+	return slides
+}
+
+type markdownSlide struct {
+	source string
+	hidden bool
+}
+
+type presentationSlide struct {
+	HTML   template.HTML
+	Hidden bool
+}
+
+func parseSlides(source string) []markdownSlide {
 	normalized := strings.ReplaceAll(source, "\r\n", "\n")
 	fencedRanges := fencedCodeRanges([]byte(normalized))
 	lines := strings.Split(normalized, "\n")
-	var slides []string
-	var current []string
+	lineOffsets := make([]int, len(lines))
 	offset := 0
+	for index, line := range lines {
+		lineOffsets[index] = offset
+		offset += len(line) + 1
+	}
+
+	var slides []markdownSlide
+	var current []string
+	currentHidden := false
 
 	appendSlide := func() {
 		body := strings.TrimSpace(strings.Join(current, "\n"))
 		if body != "" {
-			slides = append(slides, body)
+			slides = append(slides, markdownSlide{source: body, hidden: currentHidden})
 		}
 		current = nil
 	}
 
-	for _, line := range lines {
-		lineEnd := offset + len(line)
-		if strings.TrimSpace(line) == "---" && !overlapsRange(offset, lineEnd, fencedRanges) {
+	for index := 0; index < len(lines); index++ {
+		line := lines[index]
+		lineStart := lineOffsets[index]
+		lineEnd := lineStart + len(line)
+		if strings.TrimSpace(line) == "---" && !overlapsRange(lineStart, lineEnd, fencedRanges) {
+			if hidden, end, ok := slideFrontmatter(lines, lineOffsets, index, fencedRanges); ok {
+				appendSlide()
+				currentHidden = hidden
+				index = end
+				continue
+			}
 			appendSlide()
+			currentHidden = false
 		} else {
 			current = append(current, line)
 		}
-		offset = lineEnd + 1
 	}
 	appendSlide()
 	return slides
+}
+
+// slideFrontmatter recognises the deliberately small per-slide frontmatter
+// format. Keeping this parser narrow means Markdown remains the authority for
+// all slide content and avoids treating ordinary horizontal rules as metadata.
+func slideFrontmatter(lines []string, lineOffsets []int, start int, fencedRanges []sourceRange) (hidden bool, end int, ok bool) {
+	foundHidden := false
+	for index := start + 1; index < len(lines); index++ {
+		lineStart := lineOffsets[index]
+		lineEnd := lineStart + len(lines[index])
+		if overlapsRange(lineStart, lineEnd, fencedRanges) {
+			return false, 0, false
+		}
+		if strings.TrimSpace(lines[index]) == "---" {
+			return hidden, index, foundHidden
+		}
+
+		field, value, found := strings.Cut(strings.TrimSpace(lines[index]), ":")
+		if !found || strings.TrimSpace(field) != "hidden" || foundHidden {
+			return false, 0, false
+		}
+		switch strings.TrimSpace(value) {
+		case "true":
+			hidden = true
+		case "false":
+			hidden = false
+		default:
+			return false, 0, false
+		}
+		foundHidden = true
+	}
+	return false, 0, false
 }
 
 type sourceRange struct {
@@ -98,16 +164,28 @@ func renderSlides(source []byte, deckDirectory string) ([]template.HTML, error) 
 }
 
 func renderSlidesWithWarnings(source []byte, deckDirectory string, warnings io.Writer) ([]template.HTML, error) {
+	presentationSlides, err := renderPresentationSlidesWithWarnings(source, deckDirectory, warnings)
+	if err != nil {
+		return nil, err
+	}
+	rendered := make([]template.HTML, len(presentationSlides))
+	for index, slide := range presentationSlides {
+		rendered[index] = slide.HTML
+	}
+	return rendered, nil
+}
+
+func renderPresentationSlidesWithWarnings(source []byte, deckDirectory string, warnings io.Writer) ([]presentationSlide, error) {
 	warnUnterminatedFencedCodeBlocks(source, warnings)
-	markdownSlides := splitSlides(string(source))
+	markdownSlides := parseSlides(string(source))
 	if len(markdownSlides) == 0 {
 		return nil, fmt.Errorf("the Markdown file contains no slide content")
 	}
 
 	renderer := newMarkdownRenderer()
-	rendered := make([]template.HTML, 0, len(markdownSlides))
+	rendered := make([]presentationSlide, 0, len(markdownSlides))
 	for _, slide := range markdownSlides {
-		slideSource := []byte(slide)
+		slideSource := []byte(slide.source)
 		document := renderer.Parser().Parse(text.NewReader(slideSource))
 		if err := embedLocalMedia(document, deckDirectory, warnings); err != nil {
 			return nil, err
@@ -117,7 +195,7 @@ func renderSlidesWithWarnings(source []byte, deckDirectory string, warnings io.W
 			return nil, err
 		}
 		// Goldmark's safe renderer omits raw HTML and unsafe link schemes by default.
-		rendered = append(rendered, template.HTML(output.String())) //nolint:gosec
+		rendered = append(rendered, presentationSlide{HTML: template.HTML(output.String()), Hidden: slide.hidden}) //nolint:gosec
 	}
 	return rendered, nil
 }

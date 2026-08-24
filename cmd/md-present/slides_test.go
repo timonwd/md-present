@@ -61,6 +61,37 @@ func TestSplitSlidesIgnoresOnlyEmptyEdges(t *testing.T) {
 	}
 }
 
+func TestSlideFrontmatterHidesOnlyItsSlide(t *testing.T) {
+	source, err := os.ReadFile(filepath.Join("..", "..", "fixtures", "hidden-slides.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	slides, err := renderPresentationSlidesWithWarnings(source, "", nil)
+	if err != nil {
+		t.Fatalf("renderPresentationSlidesWithWarnings() error: %v", err)
+	}
+	if len(slides) != 3 {
+		t.Fatalf("renderPresentationSlidesWithWarnings() returned %d slides, want 3", len(slides))
+	}
+	if slides[0].Hidden || !slides[1].Hidden || slides[2].Hidden {
+		t.Fatalf("hidden flags = %#v, want [false true false]", []bool{slides[0].Hidden, slides[1].Hidden, slides[2].Hidden})
+	}
+	for index, slide := range slides {
+		if strings.Contains(string(slide.HTML), "hidden: ") {
+			t.Errorf("slide %d rendered its frontmatter: %s", index+1, slide.HTML)
+		}
+	}
+}
+
+func TestSlideFrontmatterDoesNotInterpretFencedContent(t *testing.T) {
+	source := []byte("```yaml\n---\nhidden: true\n---\n```\n")
+	slides := splitSlides(string(source))
+	if len(slides) != 1 || !strings.Contains(slides[0], "hidden: true") {
+		t.Fatalf("splitSlides() = %#v, want the fenced frontmatter unchanged", slides)
+	}
+}
+
 func TestRenderSlidesMarkdownAndSafety(t *testing.T) {
 	source := []byte(`# Title
 

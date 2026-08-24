@@ -3,6 +3,7 @@
 
   const deck = document.querySelector(".deck");
   const slides = Array.from(document.querySelectorAll(".slide"));
+  const visibleSlideIndices = slides.flatMap((slide, index) => slide.dataset.hidden === "true" ? [] : [index]);
   const currentLabel = document.querySelector("#current");
   const overviewButton = document.querySelector(".overview-button");
   const fullscreenButton = document.querySelector(".fullscreen-button");
@@ -296,9 +297,19 @@
 
   function hashIndex() {
     const match = window.location.hash.match(/^#(?:slide-)?(\d+)$/);
-    if (!match) return 0;
+    if (!match) return visibleSlideIndices[0] ?? 0;
     const index = Number(match[1]) - 1;
-    return Number.isInteger(index) && index >= 0 && index < slides.length ? index : 0;
+    return Number.isInteger(index) && visibleSlideIndices.includes(index) ? index : (visibleSlideIndices[0] ?? 0);
+  }
+
+  function showVisible(index, updateHash = true) {
+    const position = Math.max(0, Math.min(index, visibleSlideIndices.length - 1));
+    show(visibleSlideIndices[position] ?? 0, updateHash);
+  }
+
+  function showNextVisible(direction) {
+    const position = visibleSlideIndices.indexOf(current);
+    showVisible(position < 0 ? (direction > 0 ? 0 : visibleSlideIndices.length - 1) : position + direction);
   }
 
   function show(index, updateHash = true) {
@@ -316,7 +327,8 @@
         slide.removeAttribute("aria-current");
       }
     });
-    currentLabel.textContent = String(current + 1);
+    const visiblePosition = visibleSlideIndices.indexOf(current);
+    currentLabel.textContent = visiblePosition < 0 ? "Hidden" : String(visiblePosition + 1);
     if (updateHash) history.replaceState(null, "", `#${current + 1}`);
     if (changed) updateOverflowWarningForActiveSlide();
   }
@@ -428,7 +440,7 @@
       event.target.closest("a, button, summary, input, select, textarea, [contenteditable]:not([contenteditable='false'])")
     ) return;
 
-    show(current + 1);
+    showNextVisible(1);
   });
 
   document.addEventListener("keydown", (event) => {
@@ -470,22 +482,22 @@
     const scrollPrevious = ["ArrowUp", "PageUp"];
     if (event.key === "ArrowRight") {
       event.preventDefault();
-      show(current + 1);
+      showNextVisible(1);
     } else if (scrollNext.includes(event.key)) {
       event.preventDefault();
-      if (!scrollActiveSlide(1, event.key)) show(current + 1);
+      if (!scrollActiveSlide(1, event.key)) showNextVisible(1);
     } else if (event.key === "ArrowLeft") {
       event.preventDefault();
-      show(current - 1);
+      showNextVisible(-1);
     } else if (scrollPrevious.includes(event.key)) {
       event.preventDefault();
-      if (!scrollActiveSlide(-1, event.key)) show(current - 1);
+      if (!scrollActiveSlide(-1, event.key)) showNextVisible(-1);
     } else if (event.key === "Home") {
       event.preventDefault();
-      show(0);
+      showVisible(0);
     } else if (event.key === "End") {
       event.preventDefault();
-      show(slides.length - 1);
+      showVisible(visibleSlideIndices.length - 1);
     } else if (event.key === "Escape") {
       event.preventDefault();
       closePresentationTab();
@@ -495,6 +507,7 @@
   window.addEventListener("hashchange", () => show(hashIndex()));
   window.addEventListener("resize", scheduleOverflowMeasurement);
   show(hashIndex());
+  if (visibleSlideIndices.length === 0) toggleOverview();
   scheduleDiagramRender();
   scheduleOverflowMeasurement();
   colorScheme.addEventListener("change", scheduleDiagramRender);
