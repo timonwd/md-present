@@ -39,8 +39,8 @@ A --&gt; B
 	if !strings.Contains(response.Body.String(), `class="overview-button"`) {
 		t.Fatal("GET / omitted overview control")
 	}
-	if !strings.Contains(response.Body.String(), `aria-keyshortcuts="O"`) {
-		t.Fatal("GET / omitted overview keyboard shortcut")
+	if !strings.Contains(response.Body.String(), `aria-keyshortcuts="O Escape"`) {
+		t.Fatal("GET / omitted keyboard shortcuts")
 	}
 	csp := response.Header().Get("Content-Security-Policy")
 	if csp == "" {
@@ -67,7 +67,7 @@ A --&gt; B
 		}
 		if asset == "app.js" {
 			body := assetResponse.Body.String()
-			for _, expected := range []string{"requestFullscreen", "exitFullscreen", `securityLevel: "strict"`, `role", "alert"`, "language-mermaid", "mermaidConfigurationDirective", "Mermaid configuration directives are not supported.", "overflowWarningDuration", "scrollBy", "toggleOverview", `role", "grid"`, `role", "gridcell"`, "isMediaControl", "video, audio"} {
+			for _, expected := range []string{"requestFullscreen", "exitFullscreen", `securityLevel: "strict"`, `role", "alert"`, "language-mermaid", "mermaidConfigurationDirective", "Mermaid configuration directives are not supported.", "overflowWarningDuration", "scrollBy", "toggleOverview", "closePresentationTab", "window.close()", `role", "grid"`, `role", "gridcell"`, "isMediaControl", "video, audio"} {
 				if !strings.Contains(body, expected) {
 					t.Errorf("GET /assets/app.js omitted %q", expected)
 				}

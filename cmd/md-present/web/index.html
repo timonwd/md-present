@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="/assets/style.css">
   </head>
   <body data-revision="{{.Revision}}">
-    <main class="deck" id="slide-deck" aria-live="polite" aria-keyshortcuts="O">
+    <main class="deck" id="slide-deck" aria-live="polite" aria-keyshortcuts="O Escape">
       {{range $index, $slide := .Slides}}
       <section class="slide" id="slide-{{inc $index}}" aria-label="Slide {{inc $index}} of {{len $.Slides}}">
         <div class="slide__scroller">
