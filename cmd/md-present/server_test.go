@@ -52,13 +52,13 @@ A --&gt; B
 	if !strings.Contains(csp, "media-src 'self' data: https: http:") {
 		t.Errorf("GET / does not permit local and remote video: %s", csp)
 	}
-	for _, expected := range []string{`class="language-mermaid"`, `/assets/mermaid.min.js`, `/assets/app.js`} {
+	for _, expected := range []string{`class="language-mermaid"`, `/assets/favicon.svg`, `/assets/mermaid.min.js`, `/assets/app.js`} {
 		if !strings.Contains(response.Body.String(), expected) {
 			t.Errorf("GET / omitted %q", expected)
 		}
 	}
 
-	for _, asset := range []string{"app.js", "style.css", "mermaid.min.js", "mermaid.LICENSE.txt"} {
+	for _, asset := range []string{"app.js", "style.css", "favicon.svg", "mermaid.min.js", "mermaid.LICENSE.txt"} {
 		assetRequest := httptest.NewRequest(http.MethodGet, "/assets/"+asset, nil)
 		assetResponse := httptest.NewRecorder()
 		handler.ServeHTTP(assetResponse, assetRequest)
@@ -84,6 +84,8 @@ A --&gt; B
 					t.Errorf("GET /assets/style.css still constrains content with %q", unwanted)
 				}
 			}
+		} else if asset == "favicon.svg" && !strings.Contains(assetResponse.Body.String(), `<svg`) {
+			t.Error("GET /assets/favicon.svg did not return SVG markup")
 		} else if asset == "mermaid.min.js" && !strings.Contains(assetResponse.Body.String(), `globalThis["mermaid"]`) {
 			t.Error("GET /assets/mermaid.min.js omitted Mermaid browser export")
 		} else if asset == "mermaid.LICENSE.txt" && !strings.Contains(assetResponse.Body.String(), "The MIT License (MIT)") {
