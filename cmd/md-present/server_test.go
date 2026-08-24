@@ -99,6 +99,28 @@ A --&gt; B
 	}
 }
 
+func TestPresentationHandlerUsesExplicitTitle(t *testing.T) {
+	presentation := newPresentationState([]template.HTML{`<h1>Expected slide</h1>`})
+	handler := presentationHandler(presentation, newTabTracker(func() {}, time.Second), io.Discard, `Quarterly <Review>`)
+
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if got, want := response.Code, http.StatusOK; got != want {
+		t.Fatalf("GET / status = %d, want %d", got, want)
+	}
+	if !strings.Contains(response.Body.String(), "<title>Quarterly &lt;Review&gt;</title>") {
+		t.Fatalf("GET / did not render the explicit escaped title:\n%s", response.Body.String())
+	}
+}
+
+func TestPresentationTitleUsesMarkdownFilename(t *testing.T) {
+	if got, want := presentationTitle(filepath.Join("/tmp", "quarterly-review.md")), "quarterly-review.md"; got != want {
+		t.Fatalf("presentationTitle() = %q, want %q", got, want)
+	}
+}
+
 func TestPresentationHandlerReportsOverflow(t *testing.T) {
 	presentation := newPresentationState([]template.HTML{"<h1>One</h1>", "<h1>Two</h1>"})
 	var diagnostics bytes.Buffer

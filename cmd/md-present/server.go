@@ -41,6 +41,7 @@ const (
 type pageData struct {
 	Slides   []template.HTML
 	Revision uint64
+	Title    string
 }
 
 type presentationState struct {
@@ -188,7 +189,11 @@ func (t *tabTracker) connected() func() {
 	}
 }
 
-func presentationHandler(presentation *presentationState, tracker *tabTracker, diagnostics io.Writer) http.Handler {
+func presentationHandler(presentation *presentationState, tracker *tabTracker, diagnostics io.Writer, titles ...string) http.Handler {
+	title := "md-present"
+	if len(titles) > 0 && titles[0] != "" {
+		title = titles[0]
+	}
 	assets, err := fs.Sub(webFiles, "web")
 	if err != nil {
 		panic(err)
@@ -278,7 +283,7 @@ func presentationHandler(presentation *presentationState, tracker *tabTracker, d
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
 		slides, revision := presentation.snapshot()
-		if err := pageTemplate.Execute(w, pageData{Slides: slides, Revision: revision}); err != nil {
+		if err := pageTemplate.Execute(w, pageData{Slides: slides, Revision: revision, Title: title}); err != nil {
 			http.Error(w, "render presentation", http.StatusInternalServerError)
 		}
 	})
@@ -302,7 +307,7 @@ func servePresentation(markdownPath string, slides []template.HTML, noOpen bool,
 	tracker := newTabTracker(stop, tabCloseGrace)
 	presentation := newPresentationState(slides)
 	server := &http.Server{
-		Handler:           presentationHandler(presentation, tracker, stderr),
+		Handler:           presentationHandler(presentation, tracker, stderr, presentationTitle(markdownPath)),
 		BaseContext:       func(net.Listener) context.Context { return ctx },
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       30 * time.Second,
@@ -338,6 +343,10 @@ func servePresentation(markdownPath string, slides []template.HTML, noOpen bool,
 		}
 		return nil
 	}
+}
+
+func presentationTitle(markdownPath string) string {
+	return filepath.Base(markdownPath)
 }
 
 func newPresentationWatcher(markdownPath string) *presentationWatcher {
