@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"html/template"
 	"io"
 	"net"
@@ -36,6 +37,9 @@ A --&gt; B
 	if !strings.Contains(response.Body.String(), `class="overflow-warning"`) {
 		t.Fatal("GET / omitted overflow warning")
 	}
+	if !strings.Contains(response.Body.String(), `class="update-notice"`) {
+		t.Fatal("GET / omitted update notice")
+	}
 	if !strings.Contains(response.Body.String(), `class="overview-button"`) {
 		t.Fatal("GET / omitted overview control")
 	}
@@ -67,7 +71,7 @@ A --&gt; B
 		}
 		if asset == "app.js" {
 			body := assetResponse.Body.String()
-			for _, expected := range []string{"requestFullscreen", "exitFullscreen", `securityLevel: "strict"`, `role", "alert"`, "language-mermaid", "mermaidConfigurationDirective", "Mermaid configuration directives are not supported.", "overflowWarningDuration", "scrollBy", "toggleOverview", "closePresentationTab", "window.close()", `role", "grid"`, `role", "gridcell"`, "isMediaControl", "video, audio"} {
+			for _, expected := range []string{"requestFullscreen", "exitFullscreen", `securityLevel: "strict"`, `role", "alert"`, "language-mermaid", "mermaidConfigurationDirective", "Mermaid configuration directives are not supported.", "overflowWarningDuration", "checkForUpdate", "/api/update", "scrollBy", "toggleOverview", "closePresentationTab", "window.close()", `role", "grid"`, `role", "gridcell"`, "isMediaControl", "video, audio"} {
 				if !strings.Contains(body, expected) {
 					t.Errorf("GET /assets/app.js omitted %q", expected)
 				}
@@ -98,6 +102,32 @@ A --&gt; B
 	handler.ServeHTTP(missingResponse, missingRequest)
 	if missingResponse.Code != http.StatusNotFound {
 		t.Fatalf("GET /source.md status = %d, want 404", missingResponse.Code)
+	}
+}
+
+func TestPresentationHandlerReportsAvailableUpdate(t *testing.T) {
+	updates := newUpdateState()
+	updates.set("0.2.8")
+	handler := presentationHandlerWithUpdate(
+		newPresentationState([]template.HTML{"<h1>One</h1>"}),
+		newTabTracker(func() {}, time.Second),
+		io.Discard,
+		updates,
+	)
+
+	request := httptest.NewRequest(http.MethodGet, "/api/update", nil)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if got, want := response.Code, http.StatusOK; got != want {
+		t.Fatalf("GET /api/update status = %d, want %d", got, want)
+	}
+	var status updateStatus
+	if err := json.NewDecoder(response.Body).Decode(&status); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := status, (updateStatus{Available: true, Version: "0.2.8"}); got != want {
+		t.Fatalf("update status = %#v, want %#v", got, want)
 	}
 }
 

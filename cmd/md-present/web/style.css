@@ -102,7 +102,8 @@ body.is-overview { overflow: auto; }
 .deck.is-overview .mermaid-diagram__image { max-height: 50cqh; }
 .is-overview .progress,
 .is-overview .fullscreen-button,
-.is-overview .overflow-warning { display: none; }
+.is-overview .overflow-warning,
+.is-overview .update-notice { display: none; }
 
 .slide__scroller {
   display: flex;
@@ -296,6 +297,26 @@ video { display: block; max-width: 100%; max-height: 48vh; max-height: 48cqh; ob
 .fullscreen-button.is-active .fullscreen-button__enter { display: none; }
 .fullscreen-button.is-active .fullscreen-button__exit { display: block; }
 
+.update-notice {
+  position: fixed;
+  z-index: 2;
+  bottom: clamp(1.2rem, 3vw, 2.5rem);
+  left: 50%;
+  max-width: min(34rem, calc(100vw - 8rem));
+  transform: translateX(-50%);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
+  border-radius: 999px;
+  background: var(--stage);
+  box-shadow: 0 0.5rem 1.5rem rgb(20 25 38 / 14%);
+  color: var(--ink);
+  padding: 0.5rem 0.85rem;
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.update-notice:hover { color: var(--accent); }
+.update-notice:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
 .overflow-warning {
   position: fixed;
   bottom: clamp(1rem, 2.4vw, 2rem);
@@ -401,7 +422,7 @@ video { display: block; max-width: 100%; max-height: 48vh; max-height: 48cqh; ob
     outline: 0;
   }
   .slide.has-overflow .slide__scroller { overflow: hidden; }
-  .progress, .fullscreen-button, .overview-button, .overflow-warning { display: none; }
+  .progress, .fullscreen-button, .overview-button, .overflow-warning, .update-notice { display: none; }
 }
 
 .mermaid-diagram {
