@@ -400,8 +400,33 @@ checkForUpdate();
   }
 
   function isMediaControl(target) {
-    return target instanceof Element && Boolean(target.closest("video, audio"));
+    return target instanceof Element && Boolean(target.closest("video, audio, .video-fullscreen-button"));
   }
+
+  async function enterVideoFullscreen(video) {
+    if (typeof video.requestFullscreen === "function") {
+      await video.requestFullscreen();
+      return;
+    }
+    if (typeof video.webkitEnterFullscreen === "function") {
+      video.webkitEnterFullscreen();
+    }
+  }
+
+  document.querySelectorAll(".video-fullscreen-button").forEach((button) => {
+    const video = button.closest(".video-frame")?.querySelector("video");
+    if (!video || (typeof video.requestFullscreen !== "function" && typeof video.webkitEnterFullscreen !== "function")) {
+      button.hidden = true;
+      return;
+    }
+    button.addEventListener("click", async () => {
+      try {
+        await enterVideoFullscreen(video);
+      } catch {
+        // Fullscreen requests can be rejected by browser or system policy.
+      }
+    });
+  });
 
   function closePresentationTab() {
     // Browsers ignore window.close() for tabs that were not opened by script.

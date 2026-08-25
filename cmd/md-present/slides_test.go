@@ -342,7 +342,7 @@ func TestRenderSlidesEmbedsLocalVideoUsingImageSyntax(t *testing.T) {
 		t.Fatalf("renderSlides() error: %v", err)
 	}
 	html := string(slides[0])
-	for _, expected := range []string{`<video controls preload="metadata" src="data:video/mp4;base64,`, `aria-label="Local clip"`, `title="A local video"`} {
+	for _, expected := range []string{`<span class="video-frame"><video controls preload="metadata" src="data:video/mp4;base64,`, `aria-label="Local clip"`, `title="A local video"`, `class="video-fullscreen-button"`, `aria-label="Enter video fullscreen"`} {
 		if !strings.Contains(html, expected) {
 			t.Errorf("rendered local video does not contain %q:\n%s", expected, html)
 		}

@@ -49,7 +49,7 @@ func (r *videoRenderer) renderImage(w util.BufWriter, source []byte, node ast.No
 		}
 	}
 
-	_, _ = w.WriteString(`<video controls preload="metadata" src="`)
+	_, _ = w.WriteString(`<span class="video-frame"><video controls preload="metadata" src="`)
 	_, _ = w.WriteString(html.EscapeString(string(destination)))
 	_ = w.WriteByte('"')
 	if label := imageLabel(source, image); label != "" {
@@ -62,7 +62,7 @@ func (r *videoRenderer) renderImage(w util.BufWriter, source []byte, node ast.No
 		goldmarkhtml.DefaultWriter.Write(w, image.Title)
 		_ = w.WriteByte('"')
 	}
-	_, _ = w.WriteString(`></video>`)
+	_, _ = w.WriteString(`></video><button class="video-fullscreen-button" type="button" aria-label="Enter video fullscreen" title="Enter video fullscreen"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/></svg></button></span>`)
 	return ast.WalkSkipChildren, nil
 }
 
