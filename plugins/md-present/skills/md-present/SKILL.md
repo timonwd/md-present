@@ -65,6 +65,13 @@ Do not introduce or promise user configuration, custom themes beyond automatic l
 
 ## Run the presentation
 
+When the client provides the md-present MCP `present_file` tool, prefer it when
+shell execution is unavailable. Pass an absolute Markdown path. The file's
+containing directory is the root for relative media. If the tool returns a
+structured error with `approval_required: true`, show every `external_media`
+reference to the user and retry with `allow_external_media` only after explicit
+approval.
+
 Use:
 
 ```text

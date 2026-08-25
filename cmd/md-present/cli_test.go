@@ -44,6 +44,7 @@ func TestParseArgs(t *testing.T) {
 		wantFile               string
 		wantNoOpen             bool
 		wantAllowExternalMedia bool
+		wantMCPPort            int
 		wantAction             cliAction
 		wantError              string
 	}{
@@ -52,12 +53,22 @@ func TestParseArgs(t *testing.T) {
 		{name: "allow external media", args: []string{"--allow-external-media", "slides.md"}, wantFile: "slides.md", wantAllowExternalMedia: true, wantAction: actionRun},
 		{name: "option after file", args: []string{"slides.md", "--no-open"}, wantFile: "slides.md", wantNoOpen: true, wantAction: actionRun},
 		{name: "dash filename", args: []string{"--", "-slides.md"}, wantFile: "-slides.md", wantAction: actionRun},
+		{name: "mcp filename", args: []string{"--", "mcp"}, wantFile: "mcp", wantAction: actionRun},
 		{name: "help", args: []string{"--help"}, wantAction: actionHelp},
 		{name: "short help", args: []string{"-h"}, wantAction: actionHelp},
 		{name: "version", args: []string{"--version"}, wantAction: actionVersion},
 		{name: "missing", wantError: "missing Markdown file"},
 		{name: "extra", args: []string{"one.md", "two.md"}, wantError: "unexpected argument"},
 		{name: "unsupported", args: []string{"--theme", "slides.md"}, wantError: "unsupported option"},
+		{name: "mcp install", args: []string{"mcp", "install"}, wantMCPPort: defaultMCPPort, wantAction: actionMCPInstall},
+		{name: "mcp serve port", args: []string{"mcp", "serve", "--port", "49321"}, wantMCPPort: 49321, wantAction: actionMCPServe},
+		{name: "mcp uninstall", args: []string{"mcp", "uninstall"}, wantMCPPort: defaultMCPPort, wantAction: actionMCPUninstall},
+		{name: "mcp missing command", args: []string{"mcp"}, wantError: "missing MCP command"},
+		{name: "mcp unsupported command", args: []string{"mcp", "start"}, wantError: "unsupported MCP command"},
+		{name: "mcp invalid port", args: []string{"mcp", "serve", "--port", "0"}, wantError: "invalid MCP port"},
+		{name: "mcp missing port", args: []string{"mcp", "install", "--port"}, wantError: "missing value"},
+		{name: "mcp duplicate port", args: []string{"mcp", "serve", "--port", "38473", "--port", "38474"}, wantError: "only once"},
+		{name: "mcp uninstall port", args: []string{"mcp", "uninstall", "--port", "38473"}, wantError: "not supported"},
 	}
 
 	for _, test := range tests {
@@ -72,8 +83,8 @@ func TestParseArgs(t *testing.T) {
 			if err != nil {
 				t.Fatalf("parseArgs() unexpected error: %v", err)
 			}
-			if action != test.wantAction || config.markdownFile != test.wantFile || config.noOpen != test.wantNoOpen || config.allowExternalMedia != test.wantAllowExternalMedia {
-				t.Fatalf("parseArgs() = (%+v, %v), want file %q, no-open %v, allow-external-media %v, action %v", config, action, test.wantFile, test.wantNoOpen, test.wantAllowExternalMedia, test.wantAction)
+			if action != test.wantAction || config.markdownFile != test.wantFile || config.noOpen != test.wantNoOpen || config.allowExternalMedia != test.wantAllowExternalMedia || config.mcpPort != test.wantMCPPort {
+				t.Fatalf("parseArgs() = (%+v, %v), want file %q, no-open %v, allow-external-media %v, MCP port %d, action %v", config, action, test.wantFile, test.wantNoOpen, test.wantAllowExternalMedia, test.wantMCPPort, test.wantAction)
 			}
 		})
 	}
