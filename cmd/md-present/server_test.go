@@ -71,7 +71,7 @@ A --&gt; B
 		}
 		if asset == "app.js" {
 			body := assetResponse.Body.String()
-			for _, expected := range []string{"requestFullscreen", "exitFullscreen", `securityLevel: "strict"`, `role", "alert"`, "language-mermaid", "mermaidConfigurationDirective", "Mermaid configuration directives are not supported.", "overflowWarningDuration", "checkForUpdate", "/api/update", "scrollBy", "toggleOverview", "closePresentationTab", "window.close()", `role", "grid"`, `role", "gridcell"`, "isMediaControl", "video, audio"} {
+			for _, expected := range []string{"requestFullscreen", "exitFullscreen", `securityLevel: "strict"`, "htmlLabels: false", `role", "alert"`, "language-mermaid", "mermaidConfigurationDirective", "Mermaid configuration directives are not supported.", "overflowWarningDuration", "checkForUpdate", "/api/update", "scrollBy", "toggleOverview", "closePresentationTab", "window.close()", `role", "grid"`, `role", "gridcell"`, "isMediaControl", "video, audio"} {
 				if !strings.Contains(body, expected) {
 					t.Errorf("GET /assets/app.js omitted %q", expected)
 				}
