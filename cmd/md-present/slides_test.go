@@ -164,6 +164,9 @@ func TestMermaidTypesFixtureHasBaselineAndErrorCases(t *testing.T) {
 
 	for _, expected := range []string{
 		"flowchart LR",
+		"A([Start]) --> B[Step 1]",
+		"B --> C[Step 2]",
+		"C --> D([End])",
 		"sequenceDiagram",
 		"classDiagram",
 		"stateDiagram-v2",
