@@ -32,8 +32,10 @@ presentation. Keep the implementation direct and readable.
   outside-deck local media, unless `--allow-external-media` was supplied. Do
   not infer trust from file provenance: download metadata is platform-specific
   and can be removed by copying or extracting a file.
-- Keep raw HTML disabled and avoid script-injection paths when changing
-  rendering.
+- Render CommonMark raw HTML only after an explicit trust confirmation or the
+  `--allow-raw-html` opt-in. Keep the restrictive Content Security Policy and
+  Goldmark's dangerous-URL filtering for ordinary Markdown links; do not add
+  inline script or style allowances.
 - Preserve fence-aware `---` slide splitting, including fenced blocks nested in
   Markdown containers.
 - Preserve graceful Ctrl+C and SIGTERM shutdown.
@@ -62,10 +64,10 @@ ephemeral presentation listeners:
 - Expose file presentation through `present_file`. Require an absolute regular
   file path, resolve symlinks, and use the resolved file's containing directory
   as the deck root.
-- Preserve external-media consent. A first call reports remote and
-  outside-directory references as a completed, structured tool error with
-  `approval_required`; only an explicit `allow_external_media` retry may bypass
-  that report.
+- Preserve raw-HTML and external-media consent. A first call reports raw HTML
+  and remote or outside-directory references as a completed, structured tool
+  error with `approval_required`; only explicit `allow_raw_html` and
+  `allow_external_media` retries may bypass the corresponding reports.
 - Limit concurrently running MCP-created presentations. Each presentation
   retains its own live-reload watcher, loopback listener, last-tab grace period,
   and browser lifecycle.

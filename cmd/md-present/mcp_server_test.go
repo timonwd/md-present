@@ -62,6 +62,7 @@ func TestMCPHandlerListsAndCallsPresentFile(t *testing.T) {
 		Arguments: map[string]any{
 			"path":                 "/private/tmp/deck.md",
 			"allow_external_media": true,
+			"allow_raw_html":       true,
 		},
 	})
 	if err != nil {
@@ -73,7 +74,7 @@ func TestMCPHandlerListsAndCallsPresentFile(t *testing.T) {
 	presenter.mu.Lock()
 	input := presenter.input
 	presenter.mu.Unlock()
-	if input.Path != "/private/tmp/deck.md" || !input.AllowExternalMedia {
+	if input.Path != "/private/tmp/deck.md" || !input.AllowExternalMedia || !input.AllowRawHTML {
 		t.Fatalf("present_file input = %+v", input)
 	}
 	if !strings.Contains(fmt.Sprint(result.StructuredContent), presenter.output.PresentationURL) {
@@ -118,7 +119,7 @@ func TestMCPHandlerReturnsStructuredExternalMediaApprovalError(t *testing.T) {
 	}
 
 	manager := newMCPPresentationManager(t.Context(), io.Discard)
-	manager.start = func(context.Context, string, []template.HTML, bool, io.Writer, io.Writer) (*runningPresentation, error) {
+	manager.start = func(context.Context, string, []template.HTML, renderOptions, bool, io.Writer, io.Writer) (*runningPresentation, error) {
 		t.Fatal("presentation started before external media approval")
 		return nil, nil
 	}
@@ -209,9 +210,9 @@ func TestMCPPresentationManagerRequiresAbsolutePathAndMediaApproval(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	manager.start = func(_ context.Context, markdownPath string, slides []template.HTML, open bool, stdout, _ io.Writer) (*runningPresentation, error) {
-		if markdownPath != resolvedPath || len(slides) != 1 || !open || stdout != nil {
-			t.Fatalf("startPresentation arguments = (%q, %d slides, open %v, stdout %v)", markdownPath, len(slides), open, stdout)
+	manager.start = func(_ context.Context, markdownPath string, slides []template.HTML, options renderOptions, open bool, stdout, _ io.Writer) (*runningPresentation, error) {
+		if markdownPath != resolvedPath || len(slides) != 1 || options.allowRawHTML || !open || stdout != nil {
+			t.Fatalf("startPresentation arguments = (%q, %d slides, options %+v, open %v, stdout %v)", markdownPath, len(slides), options, open, stdout)
 		}
 		return &runningPresentation{url: "http://127.0.0.1:49123/", done: done}, nil
 	}
@@ -224,6 +225,66 @@ func TestMCPPresentationManagerRequiresAbsolutePathAndMediaApproval(t *testing.T
 	}
 }
 
+func TestMCPPresentationManagerRequiresRawHTMLApproval(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "deck.md")
+	if err := os.WriteFile(path, []byte(`<div class="columns">Trusted layout</div>`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	manager := newMCPPresentationManager(t.Context(), io.Discard)
+	manager.start = func(context.Context, string, []template.HTML, renderOptions, bool, io.Writer, io.Writer) (*runningPresentation, error) {
+		t.Fatal("presentation started before raw HTML approval")
+		return nil, nil
+	}
+	approval, err := manager.present(t.Context(), presentFileInput{Path: path})
+	if err != nil {
+		t.Fatalf("raw HTML approval result: %v", err)
+	}
+	if !strings.Contains(approval.Error, "allow_raw_html is required") || !approval.ApprovalRequired || !approval.RawHTML {
+		t.Fatalf("raw HTML approval = %+v", approval)
+	}
+
+	done := make(chan error, 1)
+	done <- nil
+	manager.start = func(_ context.Context, _ string, slides []template.HTML, options renderOptions, _ bool, _ io.Writer, _ io.Writer) (*runningPresentation, error) {
+		if !options.allowRawHTML || len(slides) != 1 || !strings.Contains(string(slides[0]), `class="columns"`) {
+			t.Fatalf("trusted raw HTML start = (%d slides, options %+v)", len(slides), options)
+		}
+		return &runningPresentation{url: "http://127.0.0.1:49123/", done: done}, nil
+	}
+	output, err := manager.present(t.Context(), presentFileInput{Path: path, AllowRawHTML: true})
+	if err != nil {
+		t.Fatalf("approved raw HTML presentation error: %v", err)
+	}
+	if output.PresentationURL != "http://127.0.0.1:49123/" {
+		t.Fatalf("presentation URL = %q", output.PresentationURL)
+	}
+}
+
+func TestMCPPresentationManagerReportsAllTrustRequirements(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "deck.md")
+	remoteMedia := "https://example.com/image.png"
+	source := []byte("<div>\n\n![Remote](" + remoteMedia + ")\n\n</div>\n")
+	if err := os.WriteFile(path, source, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	manager := newMCPPresentationManager(t.Context(), io.Discard)
+	manager.start = func(context.Context, string, []template.HTML, renderOptions, bool, io.Writer, io.Writer) (*runningPresentation, error) {
+		t.Fatal("presentation started before trust approval")
+		return nil, nil
+	}
+	approval, err := manager.present(t.Context(), presentFileInput{Path: path})
+	if err != nil {
+		t.Fatalf("combined approval result: %v", err)
+	}
+	if !approval.ApprovalRequired || !approval.RawHTML || !strings.Contains(approval.Error, "allow_raw_html is required") || !strings.Contains(approval.Error, "allow_external_media is required") || !strings.Contains(fmt.Sprint(approval.ExternalMedia), remoteMedia) {
+		t.Fatalf("combined approval = %+v", approval)
+	}
+}
+
 func TestMCPPresentationManagerBoundsConcurrentPresentations(t *testing.T) {
 	directory := t.TempDir()
 	path := filepath.Join(directory, "deck.md")
@@ -232,7 +293,7 @@ func TestMCPPresentationManagerBoundsConcurrentPresentations(t *testing.T) {
 	}
 	manager := newMCPPresentationManager(t.Context(), io.Discard)
 	done := make(chan error)
-	manager.start = func(context.Context, string, []template.HTML, bool, io.Writer, io.Writer) (*runningPresentation, error) {
+	manager.start = func(context.Context, string, []template.HTML, renderOptions, bool, io.Writer, io.Writer) (*runningPresentation, error) {
 		return &runningPresentation{url: "http://127.0.0.1:49123/", done: done}, nil
 	}
 	for range maxMCPPresentations {

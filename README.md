@@ -9,6 +9,7 @@ md-present is built to be agent-first. Agents already use Markdown for almost ev
 ## Features
 
 - GitHub-Flavored Markdown, syntax highlighting, and Mermaid diagrams
+- Trusted CommonMark raw HTML with built-in column layouts
 - Local images and videos embedded in the browser output, with remote HTTP(S) media loaded on demand
 - Light and dark mode
 - Slide overview for quickly navigating longer decks
@@ -52,7 +53,7 @@ md-present mcp install
 
 The command installs and starts a macOS LaunchAgent, then prints its Streamable HTTP endpoint. The default is `http://127.0.0.1:38473/mcp`; use `--port <port>` during installation when the default conflicts with another local service. Configure that URL in the MCP client.
 
-The server exposes `present_file`. Pass an absolute Markdown file path; its containing directory becomes the root for relative images and videos. The tool opens the presentation in the browser and returns its loopback URL. When remote media, absolute local media, or local media outside the file's directory is present, the first call completes with a structured MCP tool error: `error` states that `allow_external_media` is required, `approval_required` is `true`, and `external_media` lists the blocked references. No browser opens. The caller must show those references to the user and retry with `allow_external_media: true` only after explicit approval.
+The server exposes `present_file`. Pass an absolute Markdown file path; its containing directory becomes the root for relative images and videos. The tool opens the presentation in the browser and returns its loopback URL. Raw HTML and external media use the same explicit trust boundaries as the CLI: a first call completes with a structured MCP tool error, `approval_required` is `true`, `raw_html` identifies HTML requiring approval, and `external_media` lists blocked remote or outside-directory references. No browser opens. The caller must show the reported content to the user and retry with `allow_raw_html: true` or `allow_external_media: true` only after the corresponding approval.
 
 Remove and stop the service with:
 
@@ -92,11 +93,45 @@ Hello, world.
 ```
 
 The structured view opens in your browser and reloads when the Markdown file or local media changes.
-Before a deck with remote media or local media outside its folder opens, md-present asks whether you trust it; use `--allow-external-media` to opt in without the prompt.
+Before a deck with raw HTML opens, md-present asks whether you trust it; use `--allow-raw-html` to opt in without the prompt.
+Remote media and local media outside the deck folder use a separate trust prompt; use `--allow-external-media` to opt in without that prompt.
 Use `md-present --no-open plan.md` to start without opening a browser.
 Press Ctrl+C in the terminal to stop the process.
 
 When a network connection is available, md-present also checks GitHub Releases in the background. If a newer version exists, it shows an update notice in the presentation and prints the Homebrew upgrade command to stderr; the check is optional and never blocks presenting offline.
+
+### HTML and columns
+
+CommonMark raw HTML is supported for trusted decks. Keep blank lines between HTML container tags and Markdown content so CommonMark parses the inner content as Markdown.
+
+Use the built-in `columns` and `column` classes for equal-width columns:
+
+```md
+# Comparison
+
+<div class="columns">
+
+<div class="column">
+
+## Left
+
+- Standard Markdown
+- **Formatting** still works
+
+</div>
+
+<div class="column">
+
+## Right
+
+![Architecture](architecture.png)
+
+</div>
+
+</div>
+```
+
+Two or three columns work best on the 16:9 stage. Use Markdown image syntax inside HTML containers so local media remains embedded, watched for changes, and covered by the external-media trust check. Raw HTML runs under md-present's restrictive Content Security Policy, but it can still change presentation behavior or load external resources; trust only files you intend to present.
 
 ### Mermaid diagrams
 

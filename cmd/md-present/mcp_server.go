@@ -28,13 +28,15 @@ const (
 type presentFileInput struct {
 	Path               string `json:"path" jsonschema:"absolute path to the Markdown file to present"`
 	AllowExternalMedia bool   `json:"allow_external_media,omitempty" jsonschema:"allow remote media and local media outside the Markdown file's directory only after explicit user approval"`
+	AllowRawHTML       bool   `json:"allow_raw_html,omitempty" jsonschema:"render CommonMark raw HTML only after explicit user approval"`
 }
 
 type presentFileOutput struct {
 	PresentationURL  string   `json:"presentation_url,omitempty" jsonschema:"loopback URL of the browser presentation when it was opened"`
 	Error            string   `json:"error,omitempty" jsonschema:"error explaining why the presentation did not open"`
-	ApprovalRequired bool     `json:"approval_required,omitempty" jsonschema:"whether external media must be approved before the presentation can open"`
+	ApprovalRequired bool     `json:"approval_required,omitempty" jsonschema:"whether raw HTML or external media must be approved before the presentation can open"`
 	ExternalMedia    []string `json:"external_media,omitempty" jsonschema:"remote or outside-directory media references requiring explicit user approval"`
+	RawHTML          bool     `json:"raw_html,omitempty" jsonschema:"whether raw HTML requires explicit user approval"`
 	Warnings         []string `json:"warnings,omitempty" jsonschema:"rendering warnings detected before the presentation opened"`
 }
 
@@ -46,7 +48,7 @@ type mcpPresentationManager struct {
 	ctx    context.Context
 	stderr io.Writer
 	slots  chan struct{}
-	start  func(context.Context, string, []template.HTML, bool, io.Writer, io.Writer) (*runningPresentation, error)
+	start  func(context.Context, string, []template.HTML, renderOptions, bool, io.Writer, io.Writer) (*runningPresentation, error)
 }
 
 func newMCPPresentationManager(ctx context.Context, stderr io.Writer) *mcpPresentationManager {
@@ -73,16 +75,30 @@ func (m *mcpPresentationManager) present(_ context.Context, input presentFileInp
 	if err != nil {
 		return presentFileOutput{}, fmt.Errorf("read %q: %w", input.Path, err)
 	}
-	if references := externalMediaReferences(source, filepath.Dir(path)); len(references) > 0 && !input.AllowExternalMedia {
+	requiresRawHTMLApproval := rawHTMLPresent(source) && !input.AllowRawHTML
+	references := externalMediaReferences(source, filepath.Dir(path))
+	requiresExternalMediaApproval := len(references) > 0 && !input.AllowExternalMedia
+	if requiresRawHTMLApproval || requiresExternalMediaApproval {
+		var requirements []string
+		if requiresRawHTMLApproval {
+			requirements = append(requirements, "allow_raw_html is required because the presentation contains raw HTML")
+		}
+		if requiresExternalMediaApproval {
+			requirements = append(requirements, "allow_external_media is required because the presentation references external media")
+		} else {
+			references = nil
+		}
 		return presentFileOutput{
-			Error:            "allow_external_media is required because the presentation references external media",
+			Error:            strings.Join(requirements, "; "),
 			ApprovalRequired: true,
 			ExternalMedia:    references,
+			RawHTML:          requiresRawHTMLApproval,
 		}, nil
 	}
 
+	rendering := renderOptions{allowRawHTML: input.AllowRawHTML}
 	var warnings bytes.Buffer
-	slides, err := renderSlidesWithWarnings(source, filepath.Dir(path), &warnings)
+	slides, err := renderSlidesWithOptions(source, filepath.Dir(path), &warnings, rendering)
 	if err != nil {
 		return presentFileOutput{}, fmt.Errorf("render presentation: %w", err)
 	}
@@ -95,7 +111,7 @@ func (m *mcpPresentationManager) present(_ context.Context, input presentFileInp
 		return presentFileOutput{}, fmt.Errorf("too many presentations are already running; close a presentation tab and retry")
 	}
 
-	presentation, err := m.start(m.ctx, path, slides, true, nil, m.stderr)
+	presentation, err := m.start(m.ctx, path, slides, rendering, true, nil, m.stderr)
 	if err != nil {
 		<-m.slots
 		return presentFileOutput{}, err
@@ -136,7 +152,7 @@ func newMCPHandler(presenter filePresenter, port int) http.Handler {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "present_file",
 		Title:       "Present Markdown File",
-		Description: "Open a local Markdown file as an md-present browser presentation. The file's directory is the root for relative media. A missing external-media trust flag returns a structured tool error; show every external_media reference to the user and retry with allow_external_media only after approval.",
+		Description: "Open a local Markdown file as an md-present browser presentation. The file's directory is the root for relative media. Missing raw-HTML or external-media trust flags return a structured tool error; show raw_html and every external_media reference to the user, then retry with allow_raw_html or allow_external_media only after approval.",
 		Annotations: &mcp.ToolAnnotations{
 			DestructiveHint: &destructive,
 			OpenWorldHint:   &openWorld,

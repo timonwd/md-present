@@ -328,18 +328,18 @@ func presentationHandlerWithUpdate(presentation *presentationState, tracker *tab
 	})
 }
 
-func servePresentation(markdownPath string, slides []template.HTML, noOpen bool, stdout, stderr io.Writer) error {
+func servePresentation(markdownPath string, slides []template.HTML, noOpen bool, options renderOptions, stdout, stderr io.Writer) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	presentation, err := startPresentation(ctx, markdownPath, slides, !noOpen, stdout, stderr)
+	presentation, err := startPresentation(ctx, markdownPath, slides, options, !noOpen, stdout, stderr)
 	if err != nil {
 		return err
 	}
 	return presentation.wait()
 }
 
-func startPresentation(parent context.Context, markdownPath string, slides []template.HTML, open bool, stdout, stderr io.Writer) (*runningPresentation, error) {
+func startPresentation(parent context.Context, markdownPath string, slides []template.HTML, options renderOptions, open bool, stdout, stderr io.Writer) (*runningPresentation, error) {
 	listener, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
 		return nil, fmt.Errorf("start local server: %w", err)
@@ -359,7 +359,7 @@ func startPresentation(parent context.Context, markdownPath string, slides []tem
 	go func() {
 		serverErrors <- server.Serve(listener)
 	}()
-	go watchPresentation(ctx, newPresentationWatcher(markdownPath), presentation, liveReloadPoll, stderr)
+	go watchPresentation(ctx, newPresentationWatcher(markdownPath), presentation, liveReloadPoll, options, stderr)
 	go func() {
 		checkContext, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()
@@ -455,14 +455,16 @@ func presentationInputFingerprint(markdownPath string) ([sha256.Size]byte, error
 	return fingerprint, nil
 }
 
-func watchPresentation(ctx context.Context, watcher *presentationWatcher, presentation *presentationState, interval time.Duration, stderr io.Writer) {
+func watchPresentation(ctx context.Context, watcher *presentationWatcher, presentation *presentationState, interval time.Duration, options renderOptions, stderr io.Writer) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
 			if watcher.changed() {
-				_ = refreshPresentationWithWarnings(watcher.markdownPath, presentation, stderr)
+				if err := refreshPresentationWithOptions(watcher.markdownPath, presentation, stderr, options); err != nil {
+					fmt.Fprintf(stderr, "md-present: refresh presentation: %v\n", err)
+				}
 			}
 		case <-ctx.Done():
 			return
@@ -471,15 +473,19 @@ func watchPresentation(ctx context.Context, watcher *presentationWatcher, presen
 }
 
 func refreshPresentation(markdownPath string, presentation *presentationState) error {
-	return refreshPresentationWithWarnings(markdownPath, presentation, nil)
+	return refreshPresentationWithOptions(markdownPath, presentation, nil, renderOptions{})
 }
 
 func refreshPresentationWithWarnings(markdownPath string, presentation *presentationState, warnings io.Writer) error {
+	return refreshPresentationWithOptions(markdownPath, presentation, warnings, renderOptions{})
+}
+
+func refreshPresentationWithOptions(markdownPath string, presentation *presentationState, warnings io.Writer, options renderOptions) error {
 	source, err := os.ReadFile(markdownPath)
 	if err != nil {
 		return err
 	}
-	slides, err := renderSlidesWithWarnings(source, filepath.Dir(markdownPath), warnings)
+	slides, err := renderSlidesWithOptions(source, filepath.Dir(markdownPath), warnings, options)
 	if err != nil {
 		return err
 	}

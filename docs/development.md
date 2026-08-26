@@ -38,6 +38,12 @@ layout or navigation changes, repeat the browser smoke test with
 `fixtures/overflow.md` and verify the warning, collapsed indicator, scrolling,
 and navigation boundary behavior.
 
+For raw HTML or column-layout changes, run `md-present --no-open
+fixtures/layouts.md` and confirm the raw-HTML trust prompt appears. After
+approval, verify the two- and three-column slides in regular view, overview,
+and print preview; confirm the local image is embedded and inline HTML remains
+visible. Use `--allow-raw-html` only to exercise the explicit opt-in path.
+
 For Mermaid renderer or browser changes, run `md-present --no-open
 fixtures/mermaid-types.md` and open the printed URL. Confirm the eight baseline
 diagrams render as SVG images, the invalid diagram and configuration-directive
@@ -56,7 +62,8 @@ For MCP changes, run the Go integration tests and build `md-present`, then start
 to the printed `/mcp` endpoint, list tools, and call `present_file` with an
 absolute fixture path. Verify the browser opens, the returned presentation URL
 loads, live reload works, foreign Host and Origin headers are rejected, and an
-external-media deck is refused until the explicit approval field is set.
+HTML or external-media deck is refused until its explicit approval field is
+set.
 
 For LaunchAgent changes, use a disposable port and a binary in a stable path.
 Run `md-present mcp install --port <unused-port>`, confirm the service with

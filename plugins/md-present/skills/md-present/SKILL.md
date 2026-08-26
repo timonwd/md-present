@@ -9,7 +9,7 @@ md-present turns one Markdown file into a local browser presentation. Keep the M
 
 ## Write presentation-safe Markdown
 
-Use standard Markdown plus GitHub-Flavored Markdown tables, strikethrough, task lists, and automatic links. Add a language to fenced code blocks when syntax highlighting is useful. Raw HTML is intentionally omitted, so do not use it for layout, embeds, or behavior. Unknown or unlabelled code fences remain escaped, plain code rather than failing the deck.
+Use standard Markdown plus GitHub-Flavored Markdown tables, strikethrough, task lists, and automatic links. Add a language to fenced code blocks when syntax highlighting is useful. Unknown or unlabelled code fences remain escaped, plain code rather than failing the deck.
 
 Put `---` on a line by itself to start a slide. Whitespace around it is allowed. Empty content before, after, or between separators does not create a slide; a separator inside a fenced code block remains code.
 
@@ -33,6 +33,32 @@ For example:
 | Pilot review | Operations |
 | Go/no-go | Sponsor |
 ```
+
+Use trusted CommonMark raw HTML when standard Markdown needs a container. Keep blank lines between HTML tags and Markdown content. For equal-width columns, use md-present's built-in classes:
+
+```md
+<div class="columns">
+
+<div class="column">
+
+## Left
+
+- Standard Markdown
+
+</div>
+
+<div class="column">
+
+## Right
+
+![Diagram](assets/diagram.png)
+
+</div>
+
+</div>
+```
+
+Prefer two or three columns. Keep media in Markdown syntax inside the containers so local files remain embedded and watched. Raw HTML requires explicit trust before the deck opens; do not pass `--allow-raw-html` unless the user has approved the file.
 
 ## Add diagrams and media
 
@@ -59,7 +85,7 @@ Video destinations ending in `.mp4`, `.m4v`, `.mov`, `.ogv`, `.ogg`, or `.webm` 
 
 1. Keep each slide focused on one idea and sized for a 16:9 stage. Shorten content that would overflow when practical.
 2. Keep local media beside the deck or in a relative subdirectory when the presentation must work offline.
-3. Review remote, absolute-path, and outside-deck media with the user before running the deck. Do not pass `--allow-external-media` unless the user explicitly approves every listed reference; it bypasses the trust prompt and is suitable only for intentional, reviewed input or non-interactive automation.
+3. Review raw HTML and remote, absolute-path, and outside-deck media with the user before running the deck. Do not pass `--allow-raw-html` or `--allow-external-media` unless the user explicitly approves the corresponding content; these flags bypass separate trust prompts and are suitable only for intentional, reviewed input or non-interactive automation.
 
 Do not introduce or promise user configuration, custom themes beyond automatic light and dark mode, presenter notes, transitions, or math rendering. Fenced Mermaid diagrams and recognized code languages render locally from embedded assets.
 
@@ -68,14 +94,15 @@ Do not introduce or promise user configuration, custom themes beyond automatic l
 When the client provides the md-present MCP `present_file` tool, prefer it when
 shell execution is unavailable. Pass an absolute Markdown path. The file's
 containing directory is the root for relative media. If the tool returns a
-structured error with `approval_required: true`, show every `external_media`
-reference to the user and retry with `allow_external_media` only after explicit
-approval.
+structured error with `approval_required: true`, show the `raw_html` state and
+every `external_media` reference to the user. Retry with `allow_raw_html` or
+`allow_external_media` only after the user explicitly approves the
+corresponding content.
 
 Use:
 
 ```text
-md-present [--no-open] [--allow-external-media] <deck.md>
+md-present [--no-open] [--allow-external-media] [--allow-raw-html] <deck.md>
 ```
 
 Run `md-present --version` first when availability is uncertain.
@@ -83,6 +110,8 @@ Run `md-present --version` first when availability is uncertain.
 Use the default command for an interactive presentation. It prints one loopback URL and opens the browser. Use `--no-open` for automated validation; it prints the URL without launching a browser and continues running until signaled.
 
 When a deck includes remote, absolute-path, or outside-deck media, md-present lists the references and asks whether to trust the file before starting. Answer the prompt only when the user has approved those references. For reviewed non-interactive use, pass `--allow-external-media`; otherwise leave the prompt in place.
+
+When a deck includes raw HTML, md-present separately asks whether to render it. Answer only when the user has approved the file. For reviewed non-interactive use, pass `--allow-raw-html`; otherwise leave the prompt in place. The restrictive browser policy blocks inline scripts and styles, but trusted HTML can still change presentation behavior or load external resources.
 
 The server binds only to `127.0.0.1` on a free port. Stop it with Ctrl+C or SIGTERM. Closing the last connected presentation tab normally stops it after a short grace period, but treat that behavior as best-effort.
 
@@ -93,6 +122,7 @@ After a browser lays out the deck, md-present temporarily warns about slides tha
 ## Troubleshoot a deck
 
 - If expected slides are merged or split unexpectedly, check that each slide separator contains only `---` apart from surrounding whitespace and that code fences are closed. An unterminated fence continues to the end of the document and produces a terminal warning.
+- If Markdown inside an HTML container is not formatted, add blank lines between the opening or closing HTML tag and the Markdown content. For columns, keep each `.column` as a direct child of `.columns`.
 - If a local image or video does not appear, confirm the relative path is resolved from the deck file (not the shell's current directory) and that the file exists. Keep the media in the deck directory or a subdirectory unless the user has reviewed the outside-deck reference.
 - If a Mermaid diagram fails, correct its syntax or use a compatibility-baseline diagram type. The slide shows an in-slide alert and escaped source for invalid syntax, unsupported configuration directives, or renderer failures; do not replace it with raw HTML or a Mermaid `init`/`config` directive.
 - If a saved change is not visible, keep the server and tab open, save the Markdown or referenced local file again, and check the terminal for a render error or overflow warning. A failed refresh intentionally leaves the last valid presentation visible until the source can render again.
@@ -100,7 +130,7 @@ After a browser lays out the deck, md-present temporarily warns about slides tha
 ## Validate a deck
 
 1. Confirm every relative image or video exists relative to the deck file.
-2. Review remote, absolute-path, and outside-deck media with the user. Keep the interactive trust prompt, or use `--allow-external-media` only after explicit user approval.
+2. Review raw HTML and remote, absolute-path, and outside-deck media with the user. Keep the interactive trust prompts, or use `--allow-raw-html` and `--allow-external-media` only after explicit user approval.
 3. Start the CLI with `md-present --no-open deck.md`, keep it running, and wait for its single loopback URL line.
 4. Request that URL and verify a successful response, the expected slide count, and representative slide content. Check at least one table, code block, diagram, image, or video when the deck contains it.
 5. When browser control is available, check the first and last slides, content fit, local media, and diagram render state.

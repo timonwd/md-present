@@ -19,17 +19,23 @@ import (
 	"github.com/yuin/goldmark/text"
 )
 
-func newMarkdownRenderer() goldmark.Markdown {
-	return goldmark.New(
-		goldmark.WithExtensions(
-			extension.Linkify,
-			extension.NewTable(extension.WithTableCellAlignMethod(extension.TableCellAlignAttribute)),
-			extension.Strikethrough,
-			extension.TaskList,
-			syntaxHighlighting,
-			videoRendering,
-		),
-	)
+type renderOptions struct {
+	allowRawHTML bool
+}
+
+func newMarkdownRenderer(options renderOptions) goldmark.Markdown {
+	extensions := []goldmark.Extender{
+		extension.Linkify,
+		extension.NewTable(extension.WithTableCellAlignMethod(extension.TableCellAlignAttribute)),
+		extension.Strikethrough,
+		extension.TaskList,
+		syntaxHighlighting,
+		videoRendering,
+	}
+	if options.allowRawHTML {
+		extensions = append(extensions, rawHTMLRendering)
+	}
+	return goldmark.New(goldmark.WithExtensions(extensions...))
 }
 
 func splitSlides(source string) []string {
@@ -67,7 +73,7 @@ type sourceRange struct {
 }
 
 func fencedCodeRanges(source []byte) []sourceRange {
-	markdown := newMarkdownRenderer()
+	markdown := newMarkdownRenderer(renderOptions{})
 	document := markdown.Parser().Parse(text.NewReader(source))
 	var ranges []sourceRange
 	_ = ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
@@ -94,17 +100,24 @@ func overlapsRange(start, stop int, ranges []sourceRange) bool {
 }
 
 func renderSlides(source []byte, deckDirectory string) ([]template.HTML, error) {
-	return renderSlidesWithWarnings(source, deckDirectory, nil)
+	return renderSlidesWithOptions(source, deckDirectory, nil, renderOptions{})
 }
 
 func renderSlidesWithWarnings(source []byte, deckDirectory string, warnings io.Writer) ([]template.HTML, error) {
+	return renderSlidesWithOptions(source, deckDirectory, warnings, renderOptions{})
+}
+
+func renderSlidesWithOptions(source []byte, deckDirectory string, warnings io.Writer, options renderOptions) ([]template.HTML, error) {
+	if rawHTMLPresent(source) && !options.allowRawHTML {
+		return nil, fmt.Errorf("raw HTML was not trusted; rerun with --allow-raw-html to opt in")
+	}
 	warnUnterminatedFencedCodeBlocks(source, warnings)
 	markdownSlides := splitSlides(string(source))
 	if len(markdownSlides) == 0 {
 		return nil, fmt.Errorf("the Markdown file contains no slide content")
 	}
 
-	renderer := newMarkdownRenderer()
+	renderer := newMarkdownRenderer(options)
 	rendered := make([]template.HTML, 0, len(markdownSlides))
 	for _, slide := range markdownSlides {
 		slideSource := []byte(slide)
@@ -116,7 +129,8 @@ func renderSlidesWithWarnings(source []byte, deckDirectory string, warnings io.W
 		if err := renderer.Renderer().Render(&output, slideSource, document); err != nil {
 			return nil, err
 		}
-		// Goldmark's safe renderer omits raw HTML and unsafe link schemes by default.
+		// Raw HTML reaches this point only after the CLI trust gate. Markdown
+		// links retain Goldmark's dangerous-URL filtering.
 		rendered = append(rendered, template.HTML(output.String())) //nolint:gosec
 	}
 	return rendered, nil
@@ -127,7 +141,7 @@ func warnUnterminatedFencedCodeBlocks(source []byte, warnings io.Writer) {
 		return
 	}
 
-	markdown := newMarkdownRenderer()
+	markdown := newMarkdownRenderer(renderOptions{})
 	document := markdown.Parser().Parse(text.NewReader(source))
 	_ = ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering || node.Kind() != ast.KindFencedCodeBlock {
@@ -143,7 +157,7 @@ func warnUnterminatedFencedCodeBlocks(source []byte, warnings io.Writer) {
 }
 
 func externalMediaReferences(source []byte, deckDirectory string) []string {
-	document := newMarkdownRenderer().Parser().Parse(text.NewReader(source))
+	document := newMarkdownRenderer(renderOptions{}).Parser().Parse(text.NewReader(source))
 	seen := make(map[string]struct{})
 	var references []string
 	_ = ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
@@ -166,7 +180,7 @@ func externalMediaReferences(source []byte, deckDirectory string) []string {
 }
 
 func localMediaPaths(source []byte, deckDirectory string) []string {
-	document := newMarkdownRenderer().Parser().Parse(text.NewReader(source))
+	document := newMarkdownRenderer(renderOptions{}).Parser().Parse(text.NewReader(source))
 	seen := make(map[string]struct{})
 	var paths []string
 	_ = ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
@@ -186,6 +200,19 @@ func localMediaPaths(source []byte, deckDirectory string) []string {
 		return ast.WalkContinue, nil
 	})
 	return paths
+}
+
+func rawHTMLPresent(source []byte) bool {
+	document := newMarkdownRenderer(renderOptions{}).Parser().Parse(text.NewReader(source))
+	found := false
+	_ = ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
+		if entering && (node.Kind() == ast.KindHTMLBlock || node.Kind() == ast.KindRawHTML) {
+			found = true
+			return ast.WalkStop, nil
+		}
+		return ast.WalkContinue, nil
+	})
+	return found
 }
 
 func localMediaPath(destination, deckDirectory string) (string, bool) {
