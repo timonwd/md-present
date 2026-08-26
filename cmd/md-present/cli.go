@@ -19,6 +19,7 @@ type cliConfig struct {
 	markdownFile       string
 	noOpen             bool
 	allowExternalMedia bool
+	allowRawHTML       bool
 }
 
 func parseArgs(args []string) (cliConfig, cliAction, error) {
@@ -38,6 +39,9 @@ func parseArgs(args []string) (cliConfig, cliAction, error) {
 				continue
 			case "--allow-external-media":
 				config.allowExternalMedia = true
+				continue
+			case "--allow-raw-html":
+				config.allowRawHTML = true
 				continue
 			case "--":
 				options = false

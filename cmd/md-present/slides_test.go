@@ -66,8 +66,6 @@ func TestRenderSlidesMarkdownAndSafety(t *testing.T) {
 
 A [safe link](https://example.com), [unsafe link](javascript:alert(1)), and ![image](data:image/png;base64,AAAA).
 
-<script>alert("bad")</script>
-
 > Quote
 
 - Item
@@ -89,10 +87,84 @@ fmt.Println("hello")
 			t.Errorf("rendered HTML does not contain %q:\n%s", expected, html)
 		}
 	}
-	for _, unsafe := range []string{"<script", "javascript:alert"} {
+	for _, unsafe := range []string{"javascript:alert"} {
 		if strings.Contains(strings.ToLower(html), unsafe) {
 			t.Errorf("rendered HTML contains unsafe value %q:\n%s", unsafe, html)
 		}
+	}
+}
+
+func TestRawHTMLPresent(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		source string
+		want   bool
+	}{
+		{name: "block", source: "<div>Layout</div>\n", want: true},
+		{name: "inline", source: "Text with <mark>HTML</mark>.\n", want: true},
+		{name: "comment", source: "<!-- presenter hint -->\n", want: true},
+		{name: "code", source: "```html\n<div>Example</div>\n```\n", want: false},
+		{name: "escaped", source: "\\<div>Literal\\</div>\n", want: false},
+		{name: "markdown", source: "# Plain Markdown\n", want: false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := rawHTMLPresent([]byte(test.source)); got != test.want {
+				t.Fatalf("rawHTMLPresent() = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestRenderSlidesRequiresTrustedRawHTML(t *testing.T) {
+	_, err := renderSlides([]byte("<div>Layout</div>\n"), "")
+	if err == nil || !strings.Contains(err.Error(), "--allow-raw-html") {
+		t.Fatalf("renderSlides() error = %v, want raw HTML trust error", err)
+	}
+}
+
+func TestRenderSlidesTrustedRawHTMLPreservesCommonMarkAndURLSafety(t *testing.T) {
+	source := []byte(`<div class="columns">
+
+<div class="column">
+
+## Left
+
+- **Nested Markdown**
+
+</div>
+
+<div class="column">
+
+Right with <mark data-note="trusted">inline HTML</mark>.
+
+</div>
+
+</div>
+
+[Unsafe Markdown link](javascript:alert(1))
+`)
+
+	slides, err := renderSlidesWithOptions(source, "", nil, renderOptions{allowRawHTML: true})
+	if err != nil {
+		t.Fatalf("renderSlidesWithOptions() error: %v", err)
+	}
+	html := string(slides[0])
+	for _, expected := range []string{
+		`<div class="columns">`,
+		`<div class="column">`,
+		`<h2>Left</h2>`,
+		`<strong>Nested Markdown</strong>`,
+		`<mark data-note="trusted">inline HTML</mark>`,
+	} {
+		if !strings.Contains(html, expected) {
+			t.Errorf("trusted raw HTML output does not contain %q:\n%s", expected, html)
+		}
+	}
+	if got := strings.Count(html, `<div class="column">`); got != 2 {
+		t.Errorf("trusted raw HTML rendered %d columns, want 2:\n%s", got, html)
+	}
+	if strings.Contains(strings.ToLower(html), "javascript:alert") {
+		t.Errorf("trusted raw HTML enabled an unsafe Markdown link:\n%s", html)
 	}
 }
 
@@ -187,6 +259,34 @@ func TestMermaidTypesFixtureHasBaselineAndErrorCases(t *testing.T) {
 	}
 	if mermaidSlides != 10 {
 		t.Errorf("fixture has %d Mermaid slides, want 10", mermaidSlides)
+	}
+}
+
+func TestLayoutsFixtureUsesTrustedCommonMarkHTML(t *testing.T) {
+	fixturePath := filepath.Join("..", "..", "fixtures", "layouts.md")
+	source, err := os.ReadFile(fixturePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !rawHTMLPresent(source) {
+		t.Fatal("layouts fixture does not exercise raw HTML trust")
+	}
+
+	slides, err := renderSlidesWithOptions(source, filepath.Dir(fixturePath), nil, renderOptions{allowRawHTML: true})
+	if err != nil {
+		t.Fatalf("renderSlidesWithOptions() error: %v", err)
+	}
+	if len(slides) != 3 {
+		t.Fatalf("renderSlidesWithOptions() returned %d slides, want 3", len(slides))
+	}
+	if html := string(slides[0]); strings.Count(html, `class="column"`) != 2 || !strings.Contains(html, `src="data:image/png;base64,`) {
+		t.Fatalf("two-column fixture slide did not preserve columns and embedded media: %s", html)
+	}
+	if html := string(slides[1]); strings.Count(html, `class="column"`) != 3 {
+		t.Fatalf("three-column fixture slide did not preserve three columns: %s", html)
+	}
+	if html := string(slides[2]); !strings.Contains(html, "<mark>highlighted text</mark>") {
+		t.Fatalf("inline HTML fixture slide was not preserved: %s", html)
 	}
 }
 

@@ -9,6 +9,7 @@ md-present is built to be agent-first. Agents already use Markdown for almost ev
 ## Features
 
 - GitHub-Flavored Markdown, syntax highlighting, and Mermaid diagrams
+- Trusted CommonMark raw HTML with built-in column layouts
 - Local images and videos embedded in the browser output, with remote HTTP(S) media loaded on demand
 - Light and dark mode
 - Slide overview for quickly navigating longer decks
@@ -71,11 +72,45 @@ Hello, world.
 ```
 
 The structured view opens in your browser and reloads when the Markdown file or local media changes.
-Before a deck with remote media or local media outside its folder opens, md-present asks whether you trust it; use `--allow-external-media` to opt in without the prompt.
+Before a deck with raw HTML opens, md-present asks whether you trust it; use `--allow-raw-html` to opt in without the prompt.
+Remote media and local media outside the deck folder use a separate trust prompt; use `--allow-external-media` to opt in without that prompt.
 Use `md-present --no-open plan.md` to start without opening a browser.
 Press Ctrl+C in the terminal to stop the process.
 
 When a network connection is available, md-present also checks GitHub Releases in the background. If a newer version exists, it shows an update notice in the presentation and prints the Homebrew upgrade command to stderr; the check is optional and never blocks presenting offline.
+
+### HTML and columns
+
+CommonMark raw HTML is supported for trusted decks. Keep blank lines between HTML container tags and Markdown content so CommonMark parses the inner content as Markdown.
+
+Use the built-in `columns` and `column` classes for equal-width columns:
+
+```md
+# Comparison
+
+<div class="columns">
+
+<div class="column">
+
+## Left
+
+- Standard Markdown
+- **Formatting** still works
+
+</div>
+
+<div class="column">
+
+## Right
+
+![Architecture](architecture.png)
+
+</div>
+
+</div>
+```
+
+Two or three columns work best on the 16:9 stage. Use Markdown image syntax inside HTML containers so local media remains embedded, watched for changes, and covered by the external-media trust check. Raw HTML runs under md-present's restrictive Content Security Policy, but it can still change presentation behavior or load external resources; trust only files you intend to present.
 
 ### Mermaid diagrams
 

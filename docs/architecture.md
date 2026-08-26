@@ -32,8 +32,10 @@ presentation. Keep the implementation direct and readable.
   outside-deck local media, unless `--allow-external-media` was supplied. Do
   not infer trust from file provenance: download metadata is platform-specific
   and can be removed by copying or extracting a file.
-- Keep raw HTML disabled and avoid script-injection paths when changing
-  rendering.
+- Render CommonMark raw HTML only after an explicit trust confirmation or the
+  `--allow-raw-html` opt-in. Keep the restrictive Content Security Policy and
+  Goldmark's dangerous-URL filtering for ordinary Markdown links; do not add
+  inline script or style allowances.
 - Preserve fence-aware `---` slide splitting, including fenced blocks nested in
   Markdown containers.
 - Preserve graceful Ctrl+C and SIGTERM shutdown.

@@ -43,6 +43,19 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "md-present: read %q: %v\n", config.markdownFile, err)
 		return 1
 	}
+	rendering := renderOptions{allowRawHTML: config.allowRawHTML}
+	if rawHTMLPresent(source) && !rendering.allowRawHTML {
+		trusted, err := confirmRawHTML(stdin, stderr, path)
+		if err != nil {
+			fmt.Fprintf(stderr, "md-present: confirm raw HTML: %v\n", err)
+			return 1
+		}
+		if !trusted {
+			fmt.Fprintln(stderr, "md-present: raw HTML was not trusted; rerun with --allow-raw-html to opt in")
+			return 1
+		}
+		rendering.allowRawHTML = true
+	}
 	if references := externalMediaReferences(source, filepath.Dir(path)); len(references) > 0 && !config.allowExternalMedia {
 		trusted, err := confirmExternalMedia(stdin, stderr, path, references)
 		if err != nil {
@@ -55,13 +68,13 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		}
 	}
 
-	slides, err := renderSlidesWithWarnings(source, filepath.Dir(path), stderr)
+	slides, err := renderSlidesWithOptions(source, filepath.Dir(path), stderr, rendering)
 	if err != nil {
 		fmt.Fprintf(stderr, "md-present: render presentation: %v\n", err)
 		return 1
 	}
 
-	if err := servePresentation(path, slides, config.noOpen, stdout, stderr); err != nil {
+	if err := servePresentation(path, slides, config.noOpen, rendering, stdout, stderr); err != nil {
 		fmt.Fprintf(stderr, "md-present: %v\n", err)
 		return 1
 	}
@@ -69,15 +82,33 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 }
 
 func printHelp(w io.Writer) {
-	fmt.Fprintln(w, `Usage: md-present [--no-open] [--allow-external-media] <markdown-file>
+	fmt.Fprintln(w, `Usage: md-present [--no-open] [--allow-external-media] [--allow-raw-html] <markdown-file>
 
 Render a Markdown file as a local browser presentation.
 
 Options:
   --no-open               Start the server without opening a browser
   --allow-external-media  Trust remote and outside-deck media without prompting
+  --allow-raw-html        Trust CommonMark raw HTML without prompting
   -h, --help              Show this help
   --version               Show the version`)
+}
+
+func confirmRawHTML(input io.Reader, output io.Writer, markdownPath string) (bool, error) {
+	fmt.Fprintf(output, "md-present: %q includes raw HTML.\n", markdownPath)
+	fmt.Fprintln(output, "Raw HTML can change presentation behavior or load external resources.")
+	fmt.Fprint(output, "Trust this file and render its raw HTML? [y/N] ")
+
+	scanner := bufio.NewScanner(input)
+	if !scanner.Scan() {
+		return false, scanner.Err()
+	}
+	switch strings.ToLower(strings.TrimSpace(scanner.Text())) {
+	case "y", "yes":
+		return true, nil
+	default:
+		return false, nil
+	}
 }
 
 func confirmExternalMedia(input io.Reader, output io.Writer, markdownPath string, references []string) (bool, error) {

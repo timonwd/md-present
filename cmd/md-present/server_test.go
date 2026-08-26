@@ -78,7 +78,7 @@ A --&gt; B
 			}
 		} else if asset == "style.css" {
 			body := assetResponse.Body.String()
-			for _, expected := range []string{"video:only-child", "max-width: 100%", "max-height: 62cqh", "--stage-gutter", "--content-gutter", "text-wrap: wrap"} {
+			for _, expected := range []string{"video:only-child", "max-width: 100%", "max-height: 62cqh", "--stage-gutter", "--content-gutter", "text-wrap: wrap", ".columns > .column", "grid-auto-flow: column"} {
 				if !strings.Contains(body, expected) {
 					t.Errorf("GET /assets/style.css omitted %q", expected)
 				}
@@ -303,6 +303,32 @@ func TestRefreshPresentationKeepsLastValidRender(t *testing.T) {
 	slides, revision = presentation.snapshot()
 	if revision != 2 || !strings.Contains(string(slides[0]), "After") {
 		t.Fatalf("invalid refresh replaced presentation = (%q, %d)", slides, revision)
+	}
+}
+
+func TestRefreshPresentationRequiresSameRawHTMLTrust(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "slides.md")
+	if err := os.WriteFile(path, []byte("# Before"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	presentation := newPresentationState([]template.HTML{"<h1>Before</h1>\n"})
+	if err := os.WriteFile(path, []byte(`<div class="columns">Trusted layout</div>`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := refreshPresentation(path, presentation); err == nil || !strings.Contains(err.Error(), "--allow-raw-html") {
+		t.Fatalf("refreshPresentation() error = %v, want raw HTML trust error", err)
+	}
+	if slides, revision := presentation.snapshot(); revision != 1 || !strings.Contains(string(slides[0]), "Before") {
+		t.Fatalf("untrusted raw HTML replaced presentation = (%q, %d)", slides, revision)
+	}
+
+	if err := refreshPresentationWithOptions(path, presentation, nil, renderOptions{allowRawHTML: true}); err != nil {
+		t.Fatalf("trusted refresh error: %v", err)
+	}
+	if slides, revision := presentation.snapshot(); revision != 2 || !strings.Contains(string(slides[0]), `class="columns"`) {
+		t.Fatalf("trusted raw HTML refresh = (%q, %d)", slides, revision)
 	}
 }
 
