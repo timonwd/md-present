@@ -258,6 +258,7 @@ checkForUpdate();
         media.addEventListener("error", scheduleOverflowMeasurement, { once: true });
       }
       if (media instanceof HTMLVideoElement) {
+        prepareVideoPoster(media);
         media.addEventListener("loadedmetadata", scheduleOverflowMeasurement, { once: true });
         media.addEventListener("error", scheduleOverflowMeasurement, { once: true });
       }
@@ -308,6 +309,46 @@ checkForUpdate();
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(report),
     }).catch(() => {});
+  }
+
+  function prepareVideoPoster(video) {
+    const captureFirstFrame = () => {
+      if (!video.videoWidth || !video.videoHeight) return;
+
+      const canvas = document.createElement("canvas");
+      const maximumDimension = 1920;
+      const scale = Math.min(1, maximumDimension / Math.max(video.videoWidth, video.videoHeight));
+      canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+      canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+      const context = canvas.getContext("2d");
+      if (!context) return;
+
+      try {
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        video.poster = canvas.toDataURL("image/jpeg", 0.85);
+      } catch {
+        // Cross-origin videos without CORS permission cannot become data URLs.
+        // The seek still leaves their first decoded frame visible in the player.
+      }
+    };
+
+    const seekToFirstFrame = () => {
+      const firstFrame = Number.isFinite(video.duration) ? Math.min(0.001, video.duration) : 0.001;
+      if (firstFrame <= 0) return;
+
+      video.addEventListener("seeked", captureFirstFrame, { once: true });
+      try {
+        video.currentTime = firstFrame;
+      } catch {
+        video.removeEventListener("seeked", captureFirstFrame);
+      }
+    };
+
+    if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
+      seekToFirstFrame();
+    } else {
+      video.addEventListener("loadedmetadata", seekToFirstFrame, { once: true });
+    }
   }
 
   function scheduleOverflowMeasurement() {
