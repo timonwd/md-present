@@ -102,7 +102,6 @@ body.is-overview { overflow: auto; }
 .deck.is-overview .mermaid-diagram__image { max-height: 50cqh; }
 .is-overview .progress,
 .is-overview .fullscreen-button,
-.is-overview .video-fullscreen-button,
 .is-overview .overflow-warning,
 .is-overview .update-notice { display: none; }
 
@@ -214,37 +213,13 @@ pre code { padding: 0; background: transparent; }
 img,
 video { display: block; max-width: 100%; max-height: 48vh; max-height: 48cqh; object-fit: contain; }
 
-.video-frame { position: relative; display: block; width: fit-content; max-width: 100%; }
-.video-fullscreen-button {
-  position: absolute;
-  top: 0.65rem;
-  right: 0.65rem;
-  display: none;
-  width: 2.5rem;
-  height: 2.5rem;
-  padding: 0;
-  place-items: center;
-  border: 1px solid rgb(255 255 255 / 35%);
-  border-radius: 50%;
-  background: rgb(20 25 38 / 72%);
-  color: #fff;
-  cursor: pointer;
-  box-shadow: 0 0.35rem 1.2rem rgb(20 25 38 / 20%);
-  z-index: 1;
-}
-html:fullscreen .video-fullscreen-button { display: grid; }
-.video-fullscreen-button:hover { background: rgb(20 25 38 / 88%); }
-.video-fullscreen-button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
-.video-fullscreen-button[hidden] { display: none; }
-.video-fullscreen-button svg { width: 1.1rem; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
-
 /* Let a video be the visual focus when it is the only content, with an optional title. */
-.slide__content:has(> p:only-child > .video-frame:only-child) > p,
-.slide__content:has(> :is(h1, h2, h3):first-child):has(> p:last-child > .video-frame:only-child):not(:has(> :not(h1, h2, h3, p))) > p {
+.slide__content:has(> p:only-child > video:only-child) > p,
+.slide__content:has(> :is(h1, h2, h3):first-child):has(> p:last-child > video:only-child):not(:has(> :not(h1, h2, h3, p))) > p {
   max-width: 100%;
 }
-.slide__content:has(> p:only-child > .video-frame:only-child) video,
-.slide__content:has(> :is(h1, h2, h3):first-child):has(> p:last-child > .video-frame:only-child):not(:has(> :not(h1, h2, h3, p))) video {
+.slide__content:has(> p:only-child > video:only-child) video,
+.slide__content:has(> :is(h1, h2, h3):first-child):has(> p:last-child > video:only-child):not(:has(> :not(h1, h2, h3, p))) video {
   max-height: 62vh;
   max-height: 62cqh;
 }

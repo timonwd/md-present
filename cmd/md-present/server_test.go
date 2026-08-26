@@ -71,14 +71,14 @@ A --&gt; B
 		}
 		if asset == "app.js" {
 			body := assetResponse.Body.String()
-			for _, expected := range []string{"requestFullscreen", "exitFullscreen", "enterVideoFullscreen", "webkitEnterFullscreen", ".video-fullscreen-button", `securityLevel: "strict"`, `role", "alert"`, "language-mermaid", "mermaidConfigurationDirective", "Mermaid configuration directives are not supported.", "overflowWarningDuration", "checkForUpdate", "/api/update", "scrollBy", "toggleOverview", "closePresentationTab", "window.close()", `role", "grid"`, `role", "gridcell"`, "isMediaControl", "video, audio"} {
+			for _, expected := range []string{"requestFullscreen", "exitFullscreen", `securityLevel: "strict"`, `role", "alert"`, "language-mermaid", "mermaidConfigurationDirective", "Mermaid configuration directives are not supported.", "overflowWarningDuration", "checkForUpdate", "/api/update", "scrollBy", "toggleOverview", "closePresentationTab", "window.close()", `role", "grid"`, `role", "gridcell"`, "isMediaControl", "video, audio"} {
 				if !strings.Contains(body, expected) {
 					t.Errorf("GET /assets/app.js omitted %q", expected)
 				}
 			}
 		} else if asset == "style.css" {
 			body := assetResponse.Body.String()
-			for _, expected := range []string{".video-frame:only-child", ".video-fullscreen-button", "html:fullscreen", "max-width: 100%", "max-height: 62cqh", "--stage-gutter", "--content-gutter", "text-wrap: wrap"} {
+			for _, expected := range []string{"video:only-child", "max-width: 100%", "max-height: 62cqh", "--stage-gutter", "--content-gutter", "text-wrap: wrap"} {
 				if !strings.Contains(body, expected) {
 					t.Errorf("GET /assets/style.css omitted %q", expected)
 				}
