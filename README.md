@@ -13,6 +13,7 @@ md-present is built to be agent-first. Agents already use Markdown for almost ev
 - Light and dark mode
 - Slide overview for quickly navigating longer decks
 - Fullscreen viewing and presenting
+- Optional local MCP server for clients that can call HTTP tools but cannot run the CLI
 
 ## Install
 
@@ -40,6 +41,26 @@ For Claude Code, run the equivalent commands inside a session:
 ```
 
 Tools that support direct skill imports can download the canonical [`SKILL.md`](plugins/md-present/skills/md-present/SKILL.md).
+
+### Local MCP server
+
+Install an always-running per-user MCP server when an agent can reach localhost and the same filesystem but cannot execute `md-present` itself:
+
+```sh
+md-present mcp install
+```
+
+The command installs and starts a macOS LaunchAgent, then prints its Streamable HTTP endpoint. The default is `http://127.0.0.1:38473/mcp`; use `--port <port>` during installation when the default conflicts with another local service. Configure that URL in the MCP client.
+
+The server exposes `present_file`. Pass an absolute Markdown file path; its containing directory becomes the root for relative images and videos. The tool opens the presentation in the browser and returns its loopback URL. When remote media, absolute local media, or local media outside the file's directory is present, the first call completes with a structured MCP tool error: `error` states that `allow_external_media` is required, `approval_required` is `true`, and `external_media` lists the blocked references. No browser opens. The caller must show those references to the user and retry with `allow_external_media: true` only after explicit approval.
+
+Remove and stop the service with:
+
+```sh
+md-present mcp uninstall
+```
+
+The MCP endpoint binds only to IPv4 loopback and rejects non-loopback Host and Origin headers. It does not authenticate requests because it is intended for MCP clients that cannot configure authorization headers. Any process running locally as the user can therefore call it; do not expose or proxy the endpoint beyond localhost. Diagnostic output is written to `~/Library/Logs/md-present-mcp.log`.
 
 ## Ideal workflow
 

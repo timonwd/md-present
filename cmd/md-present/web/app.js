@@ -125,6 +125,7 @@ checkForUpdate();
       securityLevel: "strict",
       suppressErrorRendering: true,
       theme,
+      htmlLabels: false,
     });
 
     for (const diagram of diagrams) {
