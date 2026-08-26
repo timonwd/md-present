@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
+
+const defaultMCPPort = 38473
 
 type cliAction int
 
@@ -13,6 +16,9 @@ const (
 	actionRun cliAction = iota
 	actionHelp
 	actionVersion
+	actionMCPServe
+	actionMCPInstall
+	actionMCPUninstall
 )
 
 type cliConfig struct {
@@ -20,9 +26,14 @@ type cliConfig struct {
 	noOpen             bool
 	allowExternalMedia bool
 	allowRawHTML       bool
+	mcpPort            int
 }
 
 func parseArgs(args []string) (cliConfig, cliAction, error) {
+	if len(args) > 0 && args[0] == "mcp" {
+		return parseMCPArgs(args[1:])
+	}
+
 	var config cliConfig
 	var positional []string
 	options := true
@@ -62,6 +73,56 @@ func parseArgs(args []string) (cliConfig, cliAction, error) {
 	}
 	config.markdownFile = positional[0]
 	return config, actionRun, nil
+}
+
+func parseMCPArgs(args []string) (cliConfig, cliAction, error) {
+	config := cliConfig{mcpPort: defaultMCPPort}
+	if len(args) == 0 {
+		return cliConfig{}, actionRun, fmt.Errorf("missing MCP command (expected install, serve, or uninstall)")
+	}
+
+	var action cliAction
+	switch args[0] {
+	case "install":
+		action = actionMCPInstall
+	case "serve":
+		action = actionMCPServe
+	case "uninstall":
+		action = actionMCPUninstall
+	case "-h", "--help":
+		return cliConfig{}, actionHelp, nil
+	default:
+		return cliConfig{}, actionRun, fmt.Errorf("unsupported MCP command %q", args[0])
+	}
+
+	portSeen := false
+	for index := 1; index < len(args); index++ {
+		arg := args[index]
+		if arg == "-h" || arg == "--help" {
+			return cliConfig{}, actionHelp, nil
+		}
+		if arg != "--port" {
+			return cliConfig{}, actionRun, fmt.Errorf("unsupported option %q", arg)
+		}
+		if action == actionMCPUninstall {
+			return cliConfig{}, actionRun, fmt.Errorf("--port is not supported by MCP uninstall")
+		}
+		if portSeen {
+			return cliConfig{}, actionRun, fmt.Errorf("--port may be specified only once")
+		}
+		portSeen = true
+		index++
+		if index == len(args) {
+			return cliConfig{}, actionRun, fmt.Errorf("missing value for --port")
+		}
+		port, err := strconv.Atoi(args[index])
+		if err != nil || port < 1 || port > 65535 {
+			return cliConfig{}, actionRun, fmt.Errorf("invalid MCP port %q", args[index])
+		}
+		config.mcpPort = port
+	}
+
+	return config, action, nil
 }
 
 func resolveMarkdownPath(input string) (string, error) {

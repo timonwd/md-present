@@ -57,6 +57,20 @@ Confirm the prompt lists the outside-deck local image and both remote URLs; use
 outside-deck image must be embedded, while the remote image and video remain
 browser-loaded URLs.
 
+For MCP changes, run the Go integration tests and build `md-present`, then start
+`md-present mcp serve --port <unused-port>`. Connect a Streamable HTTP MCP client
+to the printed `/mcp` endpoint, list tools, and call `present_file` with an
+absolute fixture path. Verify the browser opens, the returned presentation URL
+loads, live reload works, foreign Host and Origin headers are rejected, and an
+HTML or external-media deck is refused until its explicit approval field is
+set.
+
+For LaunchAgent changes, use a disposable port and a binary in a stable path.
+Run `md-present mcp install --port <unused-port>`, confirm the service with
+`launchctl print gui/$(id -u)/com.timonwd.md-present.mcp`, exercise the MCP tool,
+then run `md-present mcp uninstall` and confirm the plist and service are gone.
+Do not leave a development LaunchAgent installed after validation.
+
 ## Agent plugin
 
 Codex and Claude Code share the plugin package under `plugins/md-present/`.
