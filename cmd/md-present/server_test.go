@@ -80,12 +80,12 @@ A --&gt; B
 			}
 		} else if asset == "style.css" {
 			body := assetResponse.Body.String()
-			for _, expected := range []string{"video:only-child", "max-width: 100%", "max-height: 62cqh", "--stage-gutter", "--content-gutter", "text-wrap: wrap", ".columns > .column", "grid-auto-flow: column"} {
+			for _, expected := range []string{"video:only-child", "max-width: 100%", "max-height: 62cqh", "--stage-gutter", "--content-gutter", "text-wrap: wrap", ".columns > .column", "grid-auto-flow: column", "@page { size: landscape; margin: 0; }", "width: 100%;\n    height: 100%;"} {
 				if !strings.Contains(body, expected) {
 					t.Errorf("GET /assets/style.css omitted %q", expected)
 				}
 			}
-			for _, unwanted := range []string{"max-width: 18ch", "max-width: 48ch", "text-wrap: balance"} {
+			for _, unwanted := range []string{"max-width: 18ch", "max-width: 48ch", "text-wrap: balance", "width: 100vw;\n    height: 100vh;"} {
 				if strings.Contains(body, unwanted) {
 					t.Errorf("GET /assets/style.css still constrains content with %q", unwanted)
 				}

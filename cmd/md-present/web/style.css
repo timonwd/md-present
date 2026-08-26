@@ -429,8 +429,8 @@ video { display: block; max-width: 100%; max-height: 48vh; max-height: 48cqh; ob
   .deck, .deck.is-overview { display: block; padding: 0; }
   .slide, .slide.is-active, .deck.is-overview .slide {
     display: flex;
-    width: 100vw;
-    height: 100vh;
+    width: 100%;
+    height: 100%;
     break-after: page;
     box-shadow: none;
     animation: none;
