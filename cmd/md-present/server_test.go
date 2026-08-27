@@ -179,7 +179,7 @@ func TestPresentationHandlerReportsOverflow(t *testing.T) {
 		}
 	}
 
-	want := "md-present: warning: slide 2 exceeds the regular 16:9 slide area at 1280x720; scroll to view all content\n"
+	want := "Warning: slide 2 exceeds the regular 16:9 slide area at 1280x720; scroll to view all content.\n"
 	if got := diagnostics.String(); got != want {
 		t.Fatalf("overflow diagnostics = %q, want %q", got, want)
 	}

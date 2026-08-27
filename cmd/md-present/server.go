@@ -104,7 +104,7 @@ func (r *overflowReporter) report(report overflowReport) {
 	}
 	fmt.Fprintf(
 		r.writer,
-		"md-present: warning: %s %s %s the regular 16:9 slide area at %dx%d; scroll to view all content\n",
+		"Warning: %s %s %s the regular 16:9 slide area at %dx%d; scroll to view all content.\n",
 		slideLabel,
 		formatSlideNumbers(report.Slides),
 		verb,
@@ -365,7 +365,7 @@ func startPresentation(parent context.Context, markdownPath string, slides []tem
 		defer cancel()
 		availableVersion, err := checkForUpdate(checkContext, http.DefaultClient, version)
 		if err == nil && availableVersion != "" {
-			fmt.Fprintf(stderr, "md-present: version %s is available; run brew upgrade --cask md-present to update\n", availableVersion)
+			fmt.Fprintf(stderr, "Update available: %s. Run brew upgrade --cask md-present to update.\n", availableVersion)
 		}
 		updates.set(availableVersion)
 	}()
@@ -463,7 +463,7 @@ func watchPresentation(ctx context.Context, watcher *presentationWatcher, presen
 		case <-ticker.C:
 			if watcher.changed() {
 				if err := refreshPresentationWithOptions(watcher.markdownPath, presentation, stderr, options); err != nil {
-					fmt.Fprintf(stderr, "md-present: refresh presentation: %v\n", err)
+					fmt.Fprintf(stderr, "Error: refresh presentation: %v\n", err)
 				}
 			}
 		case <-ctx.Done():

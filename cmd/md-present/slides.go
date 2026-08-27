@@ -109,7 +109,7 @@ func renderSlidesWithWarnings(source []byte, deckDirectory string, warnings io.W
 
 func renderSlidesWithOptions(source []byte, deckDirectory string, warnings io.Writer, options renderOptions) ([]template.HTML, error) {
 	if rawHTMLPresent(source) && !options.allowRawHTML {
-		return nil, fmt.Errorf("raw HTML was not trusted; rerun with --allow-raw-html to opt in")
+		return nil, fmt.Errorf("raw HTML requires --allow-raw-html")
 	}
 	warnUnterminatedFencedCodeBlocks(source, warnings)
 	markdownSlides := splitSlides(string(source))
@@ -151,7 +151,7 @@ func warnUnterminatedFencedCodeBlocks(source []byte, warnings io.Writer) {
 		if lines.Len() == 0 || lines.At(lines.Len()-1).Stop != len(source) {
 			return ast.WalkContinue, nil
 		}
-		fmt.Fprintln(warnings, "md-present: warning: unterminated fenced code block continues to the end of the document")
+		fmt.Fprintln(warnings, "Warning: unterminated fenced code block continues to the end of the document.")
 		return ast.WalkContinue, nil
 	})
 }
@@ -302,7 +302,7 @@ func embedLocalMedia(document ast.Node, deckDirectory string, warnings io.Writer
 				parent.RemoveChild(parent, image)
 			}
 			if warnings != nil {
-				fmt.Fprintf(warnings, "md-present: warning: skip local media %q: %v\n", destination, err)
+				fmt.Fprintf(warnings, "Warning: skipped local media %q: %v\n", destination, err)
 			}
 			return ast.WalkContinue, nil
 		}

@@ -28,7 +28,7 @@ func TestConfirmExternalMedia(t *testing.T) {
 			if trusted != test.trusted {
 				t.Fatalf("confirmExternalMedia() = %v, want %v", trusted, test.trusted)
 			}
-			for _, expected := range []string{"includes external media", "/private/video.mp4", "https://example.com/image.png", "Trust this file"} {
+			for _, expected := range []string{"External media in", "/private/video.mp4", "https://example.com/image.png", "Trust this file"} {
 				if !strings.Contains(output.String(), expected) {
 					t.Errorf("prompt omitted %q: %s", expected, output.String())
 				}
@@ -57,7 +57,7 @@ func TestConfirmRawHTML(t *testing.T) {
 			if trusted != test.trusted {
 				t.Fatalf("confirmRawHTML() = %v, want %v", trusted, test.trusted)
 			}
-			for _, expected := range []string{"includes raw HTML", "change presentation behavior", "Trust this file"} {
+			for _, expected := range []string{"Raw HTML in", "change presentation behavior", "Trust this file"} {
 				if !strings.Contains(output.String(), expected) {
 					t.Errorf("prompt omitted %q: %s", expected, output.String())
 				}
@@ -142,10 +142,13 @@ func TestRunRejectsUntrustedRawHTML(t *testing.T) {
 	if code := run([]string{"--no-open", path}, strings.NewReader("\n"), &stdout, &stderr); code != 1 {
 		t.Fatalf("run() = %d, want 1; stderr:\n%s", code, stderr.String())
 	}
-	for _, expected := range []string{"includes raw HTML", "raw HTML was not trusted", "--allow-raw-html"} {
+	for _, expected := range []string{"Raw HTML in", "Raw HTML was not trusted", "--allow-raw-html"} {
 		if !strings.Contains(stderr.String(), expected) {
 			t.Errorf("run() stderr omitted %q:\n%s", expected, stderr.String())
 		}
+	}
+	if strings.Contains(stderr.String(), "md-present:") {
+		t.Errorf("run() stderr retained tool prefix:\n%s", stderr.String())
 	}
 	if stdout.Len() != 0 {
 		t.Errorf("run() stdout = %q, want empty", stdout.String())
