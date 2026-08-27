@@ -66,6 +66,16 @@ func TestConfirmRawHTML(t *testing.T) {
 	}
 }
 
+func TestReadConfirmationFromNonTerminalInput(t *testing.T) {
+	answer, err := readConfirmation(strings.NewReader(" Yes\n"), &bytes.Buffer{})
+	if err != nil {
+		t.Fatalf("readConfirmation() error: %v", err)
+	}
+	if answer != "yes" {
+		t.Fatalf("readConfirmation() = %q, want %q", answer, "yes")
+	}
+}
+
 func TestParseArgs(t *testing.T) {
 	tests := []struct {
 		name                   string

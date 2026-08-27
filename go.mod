@@ -6,6 +6,7 @@ require (
 	github.com/alecthomas/chroma/v2 v2.27.0
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/yuin/goldmark v1.8.5
+	golang.org/x/term v0.45.0
 )
 
 require (

@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"golang.org/x/term"
 )
 
 var version = "0.3.2"
@@ -122,11 +124,11 @@ func confirmRawHTML(input io.Reader, output io.Writer, markdownPath string) (boo
 	fmt.Fprintln(output, "Raw HTML can change presentation behavior or load external resources.")
 	fmt.Fprint(output, "Trust this file and render its raw HTML? [y/N] ")
 
-	scanner := bufio.NewScanner(input)
-	if !scanner.Scan() {
-		return false, scanner.Err()
+	answer, err := readConfirmation(input, output)
+	if err != nil {
+		return false, err
 	}
-	switch strings.ToLower(strings.TrimSpace(scanner.Text())) {
+	switch answer {
 	case "y", "yes":
 		return true, nil
 	default:
@@ -141,14 +143,39 @@ func confirmExternalMedia(input io.Reader, output io.Writer, markdownPath string
 	}
 	fmt.Fprint(output, "Trust this file and allow its external media? [y/N] ")
 
-	scanner := bufio.NewScanner(input)
-	if !scanner.Scan() {
-		return false, scanner.Err()
+	answer, err := readConfirmation(input, output)
+	if err != nil {
+		return false, err
 	}
-	switch strings.ToLower(strings.TrimSpace(scanner.Text())) {
+	switch answer {
 	case "y", "yes":
 		return true, nil
 	default:
 		return false, nil
 	}
+}
+
+// readConfirmation reads one key immediately when input is an interactive
+// terminal. Non-terminal input retains line-based behavior for scripts.
+func readConfirmation(input io.Reader, output io.Writer) (string, error) {
+	if file, ok := input.(*os.File); ok && term.IsTerminal(int(file.Fd())) {
+		state, err := term.MakeRaw(int(file.Fd()))
+		if err != nil {
+			return "", err
+		}
+		defer term.Restore(int(file.Fd()), state)
+
+		var key [1]byte
+		if _, err := file.Read(key[:]); err != nil {
+			return "", err
+		}
+		fmt.Fprintf(output, "%c\n", key[0])
+		return strings.ToLower(string(key[0])), nil
+	}
+
+	scanner := bufio.NewScanner(input)
+	if !scanner.Scan() {
+		return "", scanner.Err()
+	}
+	return strings.ToLower(strings.TrimSpace(scanner.Text())), nil
 }
