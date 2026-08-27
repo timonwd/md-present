@@ -6,6 +6,16 @@
   const currentLabel = document.querySelector("#current");
   const overviewButton = document.querySelector(".overview-button");
   const fullscreenButton = document.querySelector(".fullscreen-button");
+  const editorButton = document.querySelector(".editor-button");
+  const editor = document.querySelector(".editor");
+  const editorCloseButton = document.querySelector(".editor__close");
+  const editorResizeHandle = document.querySelector(".editor__resize-handle");
+  const editorSource = document.querySelector(".editor__source");
+  const editorSaveButton = document.querySelector(".editor__save");
+  const editorStatus = document.querySelector(".editor__status");
+  const editorPreviousButton = document.querySelector(".editor__previous");
+  const editorNextButton = document.querySelector(".editor__next");
+  const editorSlideNumber = document.querySelector(".editor__slide-number");
   const overflowWarning = document.querySelector(".overflow-warning");
   const overflowWarningText = document.querySelector(".overflow-warning__text");
   const colorScheme = window.matchMedia("(prefers-color-scheme: dark)");
@@ -21,6 +31,14 @@
   let overflowWarningExpanded = false;
   let loadWarningActive = false;
   let loadWarningShown = false;
+  let editorRevision = "";
+  let editorSlide = 0;
+  let editorDirty = false;
+  let editorSaveInProgress = false;
+  let editorExpectedDeckRevision = 0;
+  let editorOriginalHTML = "";
+  let editorPreviewTimer;
+  let editorPreviewGeneration = 0;
   const observedMedia = new WeakSet();
 const overflowWarningDuration = 5000;
 const updateNotice = document.querySelector(".update-notice");
@@ -47,13 +65,16 @@ checkForUpdate();
   const overflowTransitionDuration = 180;
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
-  const diagrams = Array.from(document.querySelectorAll("pre > code.language-mermaid")).map((code, index) => {
-    const figure = document.createElement("figure");
-    figure.className = "mermaid-diagram";
-    figure.setAttribute("aria-busy", "true");
-    code.parentElement.replaceWith(figure);
-    return { figure, source: code.textContent, index };
-  });
+  function collectDiagrams() {
+    return Array.from(document.querySelectorAll("pre > code.language-mermaid")).map((code, index) => {
+      const figure = document.createElement("figure");
+      figure.className = "mermaid-diagram";
+      figure.setAttribute("aria-busy", "true");
+      code.parentElement.replaceWith(figure);
+      return { figure, source: code.textContent, index };
+    });
+  }
+  let diagrams = collectDiagrams();
   const mermaidConfigurationDirective = /^\s*%%\{\s*(?:config|init)\s*:/im;
 
   function showDiagramError(diagram, error) {
@@ -382,6 +403,7 @@ checkForUpdate();
     currentLabel.textContent = String(current + 1);
     if (updateHash) history.replaceState(null, "", `#${current + 1}`);
     if (changed) updateOverflowWarningForActiveSlide();
+    if (changed && editor && !editor.hidden && !editorDirty) loadEditorSlide();
   }
 
   function focusOverviewSlide(index) {
@@ -445,6 +467,141 @@ checkForUpdate();
     return target instanceof Element && Boolean(target.closest("video, audio"));
   }
 
+  function setEditorStatus(message, error = false) {
+    if (!editorStatus) return;
+    editorStatus.textContent = message;
+    editorStatus.classList.toggle("is-error", error);
+    editorStatus.hidden = !message;
+  }
+
+  function updateEditorCancelLabel() {
+    if (!editorCloseButton) return;
+    editorCloseButton.textContent = editorDirty ? "Discard" : "Cancel";
+  }
+
+  function updateEditorNavigation() {
+    if (!editorPreviousButton || !editorNextButton) return;
+    editorPreviousButton.disabled = current === 0;
+    editorNextButton.disabled = current === slides.length - 1;
+    editorSlideNumber.textContent = `${current + 1} / ${slides.length}`;
+  }
+
+  function discardEditorChanges() {
+    clearTimeout(editorPreviewTimer);
+    editorPreviewGeneration += 1;
+    if (editorDirty) updateActiveSlide(editorOriginalHTML);
+    editorDirty = false;
+    updateEditorCancelLabel();
+    setEditorStatus("");
+  }
+
+  function navigateEditor(direction) {
+    if (editorDirty && !window.confirm("Discard unsaved changes to this slide?")) return;
+    if (editorDirty) discardEditorChanges();
+    show(current + direction);
+    updateEditorNavigation();
+  }
+
+  function updateActiveSlide(html) {
+    slides[current].querySelector(".slide__content").innerHTML = html;
+    diagrams = collectDiagrams();
+    scheduleDiagramRender();
+    scheduleOverflowMeasurement();
+  }
+
+  async function loadEditorSlide() {
+    if (!editorSource) return;
+    setEditorStatus("Loading…");
+    try {
+      const slide = current + 1;
+      const response = await fetch(`/api/source?slide=${encodeURIComponent(slide)}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("Could not load the Markdown source.");
+      const source = await response.json();
+      editorOriginalHTML = slides[current].querySelector(".slide__content").innerHTML;
+      editorSource.value = source.source;
+      editorRevision = source.revision;
+      editorSlide = source.slide;
+      editorDirty = false;
+      updateEditorCancelLabel();
+      setEditorStatus("");
+      updateEditorNavigation();
+    } catch (error) {
+      setEditorStatus(error instanceof Error ? error.message : "Could not load the Markdown source.", true);
+    }
+  }
+
+  function scheduleEditorPreview() {
+    clearTimeout(editorPreviewTimer);
+    const generation = ++editorPreviewGeneration;
+    editorPreviewTimer = setTimeout(async () => {
+      try {
+        const response = await fetch("/api/source/preview", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ source: editorSource.value, revision: editorRevision, slide: editorSlide }),
+        });
+        if (!response.ok) throw new Error(await response.text() || "Could not preview the Markdown source.");
+        const preview = await response.json();
+        if (generation !== editorPreviewGeneration || editorSlide !== current + 1) return;
+        updateActiveSlide(preview.html);
+        setEditorStatus("Previewing unsaved changes.");
+      } catch (error) {
+        if (generation === editorPreviewGeneration) setEditorStatus(error instanceof Error ? error.message : "Could not preview the Markdown source.", true);
+      }
+    }, 250);
+  }
+
+  async function openEditor() {
+    if (!editor || !editorSource) return;
+    editor.hidden = false;
+    editorButton.setAttribute("aria-expanded", "true");
+    await loadEditorSlide();
+    editorSource.focus();
+  }
+
+  function closeEditor() {
+    if (!editor || editor.hidden) return;
+    if (editorDirty && !window.confirm("Discard unsaved changes to this slide?")) return;
+    discardEditorChanges();
+    editor.hidden = true;
+    editorButton.setAttribute("aria-expanded", "false");
+    editorButton.focus();
+  }
+
+  async function saveEditor() {
+    if (!editorSource || !editorSaveButton || !editorDirty) return;
+    clearTimeout(editorPreviewTimer);
+    editorPreviewGeneration += 1;
+    editorSaveButton.disabled = true;
+    editorSaveInProgress = true;
+    setEditorStatus("Saving…");
+    try {
+      const response = await fetch("/api/source", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source: editorSource.value, revision: editorRevision, slide: editorSlide }),
+      });
+      if (!response.ok) {
+        const detail = await response.text();
+        throw new Error(detail || "Could not save the Markdown source.");
+      }
+      const saved = await response.json();
+      editorRevision = saved.revision;
+      editorDirty = false;
+	updateEditorCancelLabel();
+      editorExpectedDeckRevision = saved.deckRevision;
+      document.body.dataset.revision = String(saved.deckRevision);
+      updateActiveSlide(saved.html);
+      editorOriginalHTML = saved.html;
+      setEditorStatus("Saved.");
+    } catch (error) {
+      setEditorStatus(error instanceof Error ? error.message : "Could not save the Markdown source.", true);
+    } finally {
+      editorSaveInProgress = false;
+      editorSaveButton.disabled = false;
+    }
+  }
+
   function closePresentationTab() {
     // Browsers ignore window.close() for tabs that were not opened by script.
     window.close();
@@ -473,7 +630,43 @@ checkForUpdate();
 
   overviewButton.addEventListener("click", toggleOverview);
 
+  if (editorButton) {
+    editorButton.addEventListener("click", () => editor?.hidden ? openEditor() : closeEditor());
+    editorCloseButton.addEventListener("click", closeEditor);
+    editorPreviousButton.addEventListener("click", () => navigateEditor(-1));
+    editorNextButton.addEventListener("click", () => navigateEditor(1));
+    editorSource.addEventListener("input", () => {
+      editorDirty = true;
+      updateEditorCancelLabel();
+      setEditorStatus("Unsaved changes.");
+      scheduleEditorPreview();
+    });
+    editorSaveButton.addEventListener("click", saveEditor);
+    editorSource.addEventListener("keydown", (event) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        saveEditor();
+      }
+      if (event.key === "Escape" && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+        event.preventDefault();
+        closeEditor();
+      }
+    });
+    editorResizeHandle.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      editorResizeHandle.setPointerCapture(event.pointerId);
+      const resize = (moveEvent) => {
+        const width = Math.max(320, Math.min(window.innerWidth * 0.85, window.innerWidth - moveEvent.clientX));
+        editor.style.setProperty("--editor-width", `${width}px`);
+      };
+      editorResizeHandle.addEventListener("pointermove", resize);
+      editorResizeHandle.addEventListener("pointerup", () => editorResizeHandle.removeEventListener("pointermove", resize), { once: true });
+      editorResizeHandle.addEventListener("pointercancel", () => editorResizeHandle.removeEventListener("pointermove", resize), { once: true });
+    });
+  }
+
   deck.addEventListener("click", (event) => {
+    if (editor && !editor.hidden) return;
     const clickedSlide = event.target instanceof Element ? event.target.closest(".slide") : null;
     if (overview && clickedSlide) {
       event.preventDefault();
@@ -496,6 +689,8 @@ checkForUpdate();
 
   document.addEventListener("keydown", (event) => {
     if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || isEditable(event.target) || isMediaControl(event.target)) return;
+
+    if (editor && !editor.hidden) return;
 
     if (event.key.toLowerCase() === "o") {
       event.preventDefault();
@@ -592,5 +787,13 @@ checkForUpdate();
   }
 
   const session = new EventSource(`/api/session?revision=${encodeURIComponent(document.body.dataset.revision)}`);
-  session.addEventListener("reload", () => window.location.reload());
+  session.addEventListener("reload", (event) => {
+    const revision = Number(event.data);
+    if (editorSaveInProgress || revision === editorExpectedDeckRevision) return;
+    if (editorDirty) {
+      setEditorStatus("The file changed outside the editor. Save will report a conflict.", true);
+      return;
+    }
+    window.location.reload();
+  });
 })();

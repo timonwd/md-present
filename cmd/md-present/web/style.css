@@ -90,6 +90,45 @@ body.is-overview { overflow: auto; }
   outline-offset: 4px;
 }
 
+.editor-button {
+  left: calc(clamp(1.2rem, 3vw, 2.5rem) + 3.45rem);
+}
+
+.editor {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 4;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: var(--editor-width, min(44rem, 100vw));
+  height: 100svh;
+  border-left: 1px solid var(--line);
+  background: var(--stage);
+  box-shadow: -1rem 0 3rem rgb(20 25 38 / 18%);
+}
+
+.editor[hidden] { display: none; }
+.editor__resize-handle { position: absolute; top: 0; bottom: 0; left: -5px; width: 10px; cursor: col-resize; touch-action: none; }
+.editor__header,
+.editor__footer { display: flex; align-items: center; gap: 0.75rem; padding: 0.85rem 1rem; border-bottom: 1px solid var(--line); }
+.editor__footer { border-top: 1px solid var(--line); border-bottom: 0; justify-content: space-between; }
+.editor__actions { display: flex; align-items: center; gap: 0.5rem; }
+.editor__navigation { display: flex; align-items: center; gap: 0.35rem; }
+.editor__navigation button { width: 2.4rem; }
+.editor__slide-number { min-width: 3.8rem; color: var(--muted); font-size: 0.82rem; text-align: center; }
+.editor__actions button { width: 5.5rem; }
+.editor__header button,
+.editor__close,
+.editor__save,
+.editor__navigation button { border: 1px solid var(--line); border-radius: 0.35rem; background: var(--stage); color: var(--ink); font: inherit; padding: 0.4rem 0.65rem; cursor: pointer; }
+.editor__close { background: var(--code); color: var(--muted); }
+.editor__save { border-color: var(--accent); background: var(--accent); color: white; }
+.editor__save:disabled { cursor: wait; opacity: 0.65; }
+.editor__source { width: 100%; min-height: 0; resize: none; border: 0; outline: 0; background: var(--stage); color: var(--ink); padding: 1rem; font: 0.9rem/1.5 "SFMono-Regular", Consolas, "Liberation Mono", monospace; tab-size: 2; }
+.editor__status { min-width: 0; margin-left: auto; padding: 0.3rem 0.55rem; border: 1px solid var(--line); border-radius: 999px; background: var(--code); color: var(--muted); font-size: 0.78rem; }
+.editor__status.is-error { color: #b42318; }
+
 .deck.is-overview .slide__scroller,
 .deck.is-overview .slide.has-overflow .slide__scroller { overflow: hidden; }
 .deck.is-overview .slide__content { padding: 3cqw; font-size: 1.55cqw; pointer-events: none; }
@@ -102,6 +141,7 @@ body.is-overview { overflow: auto; }
 .deck.is-overview .mermaid-diagram__image { max-height: 50cqh; }
 .is-overview .progress,
 .is-overview .fullscreen-button,
+.is-overview .editor,
 .is-overview .overflow-warning,
 .is-overview .update-notice { display: none; }
 
@@ -284,7 +324,8 @@ video { display: block; max-width: 100%; max-height: 48vh; max-height: 48cqh; ob
 .progress__rule { width: 1.6rem; height: 1px; background: var(--muted); opacity: 0.45; }
 
 .fullscreen-button,
-.overview-button {
+.overview-button,
+.editor-button {
   position: fixed;
   top: clamp(1rem, 2.4vw, 2rem);
   display: grid;
@@ -304,10 +345,13 @@ video { display: block; max-width: 100%; max-height: 48vh; max-height: 48cqh; ob
 
 .fullscreen-button { right: clamp(1.2rem, 3vw, 2.5rem); }
 .overview-button { left: clamp(1.2rem, 3vw, 2.5rem); }
-.fullscreen-button:hover, .overview-button:hover, .overview-button.is-active { color: var(--ink); }
-.fullscreen-button:focus-visible, .overview-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.fullscreen-button:hover, .overview-button:hover, .editor-button:hover, .overview-button.is-active { color: var(--ink); }
+.fullscreen-button:focus-visible, .overview-button:focus-visible, .editor-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .fullscreen-button[hidden] { display: none; }
+:fullscreen .editor-button,
+:-webkit-full-screen .editor-button { display: none; }
 .fullscreen-button svg, .overview-button svg { width: 1.1rem; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+.editor-button svg { width: 1.1rem; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
 .fullscreen-button__exit { display: none; }
 .fullscreen-button.is-active .fullscreen-button__enter { display: none; }
 .fullscreen-button.is-active .fullscreen-button__exit { display: block; }

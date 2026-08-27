@@ -34,6 +34,17 @@
         <path d="M8 3v5H3M16 3v5h5M8 21v-5H3M16 21v-5h5"></path>
       </svg>
     </button>
+    {{if .Editor}}
+    <button class="editor-button" type="button" aria-label="Edit Markdown" aria-expanded="false" title="Edit Markdown">
+      <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m14.7 4.3 5 5M4 20l4.2-1 10.9-10.9a1.8 1.8 0 0 0-2.6-2.6L5.6 16.4 4 20Z"></path></svg>
+    </button>
+    <aside class="editor" aria-label="Edit Markdown" hidden>
+      <div class="editor__resize-handle" aria-hidden="true"></div>
+      <div class="editor__header"><strong>Current slide Markdown</strong><span class="editor__status" role="status" hidden></span></div>
+      <textarea class="editor__source" aria-label="Markdown source" spellcheck="true"></textarea>
+      <div class="editor__footer"><div class="editor__navigation"><button class="editor__previous" type="button" aria-label="Edit previous slide" title="Previous slide">←</button><span class="editor__slide-number" aria-live="polite"></span><button class="editor__next" type="button" aria-label="Edit next slide" title="Next slide">→</button></div><div class="editor__actions"><button class="editor__close" type="button" aria-label="Cancel editing">Cancel</button><button class="editor__save" type="button">Save</button></div></div>
+    </aside>
+    {{end}}
     <button class="overflow-warning" type="button" aria-label="Show overflow warning" aria-live="polite" hidden>
       <svg aria-hidden="true" viewBox="0 0 24 24">
         <path d="M12 3 2.8 20h18.4L12 3Zm0 6v5m0 3.2v.1"></path>

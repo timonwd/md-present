@@ -98,6 +98,16 @@ Remote media and local media outside the deck folder use a separate trust prompt
 Use `md-present --no-open plan.md` to start without opening a browser.
 Press Ctrl+C in the terminal to stop the process.
 
+Use the **Edit** button next to the slide overview to open a local source
+editor. It contains only the current slide's Markdown and previews valid edits
+without writing the file. Save with Cmd/Ctrl+S to persist the change; **Cancel**
+restores the saved slide. Drag the panel's left edge to resize it. It works only
+for the deck file selected on the command line and rejects saves when that file
+changed outside the editor. It intentionally remains a plain textarea for now
+so the Markdown renderer stays the source of truth; a richer editor can replace
+this surface later without changing the save API. While editing, use the footer
+arrows to change slides; they ask before discarding unsaved changes.
+
 When a network connection is available, md-present also checks GitHub Releases in the background. If a newer version exists, it shows an update notice in the presentation and prints the Homebrew upgrade command to stderr; the check is optional and never blocks presenting offline.
 
 ### HTML and columns
