@@ -118,7 +118,7 @@ func (m *mcpPresentationManager) present(_ context.Context, input presentFileInp
 	}
 	go func() {
 		if err := presentation.wait(); err != nil {
-			fmt.Fprintf(m.stderr, "md-present: MCP presentation stopped: %v\n", err)
+			fmt.Fprintf(m.stderr, "Error: MCP presentation stopped: %v\n", err)
 		}
 		<-m.slots
 	}()

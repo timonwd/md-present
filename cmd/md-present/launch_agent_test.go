@@ -104,7 +104,7 @@ func TestInstallAndUninstallMCPLaunchAgent(t *testing.T) {
 	if len(calls) != 2 || !slices.Equal(calls[1], []string{"bootout", "gui/501", plistPath}) {
 		t.Fatalf("uninstall launchctl calls = %v", calls)
 	}
-	if uninstallWarnings.Len() != 0 || !strings.Contains(uninstallOutput.String(), "Removed") {
+	if uninstallWarnings.Len() != 0 || !strings.Contains(uninstallOutput.String(), "MCP LaunchAgent removed.") {
 		t.Fatalf("uninstall output = %q, warnings = %q", uninstallOutput.String(), uninstallWarnings.String())
 	}
 }

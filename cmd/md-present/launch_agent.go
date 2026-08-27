@@ -130,7 +130,7 @@ func installMCPLaunchAgentAt(home, executable string, uid, port int, run launchc
 		return fmt.Errorf("launchctl bootstrap: %w%s", err, commandOutputSuffix(output))
 	}
 
-	fmt.Fprintf(stdout, "Installed md-present MCP LaunchAgent.\nEndpoint: http://127.0.0.1:%d/mcp\n", port)
+	fmt.Fprintf(stdout, "MCP LaunchAgent installed.\nEndpoint: http://127.0.0.1:%d/mcp\n", port)
 	return nil
 }
 
@@ -149,12 +149,12 @@ func uninstallMCPLaunchAgentAt(home string, uid int, run launchctlRunner, stdout
 		if _, printErr := run("print", service); printErr == nil {
 			return fmt.Errorf("launchctl bootout: %w%s", err, commandOutputSuffix(output))
 		}
-		fmt.Fprintf(stderr, "md-present: warning: LaunchAgent was not loaded: %v%s\n", err, commandOutputSuffix(output))
+		fmt.Fprintf(stderr, "Warning: LaunchAgent was not loaded: %v%s\n", err, commandOutputSuffix(output))
 	}
 	if err := os.Remove(plistPath); err != nil {
 		return fmt.Errorf("remove LaunchAgent %q: %w", plistPath, err)
 	}
-	fmt.Fprintln(stdout, "Removed md-present MCP LaunchAgent.")
+	fmt.Fprintln(stdout, "MCP LaunchAgent removed.")
 	return nil
 }
 

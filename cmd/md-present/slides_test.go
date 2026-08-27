@@ -364,7 +364,7 @@ func TestRenderSlidesWarnsAboutUnterminatedFencedCodeBlock(t *testing.T) {
 			if len(slides) != 1 {
 				t.Fatalf("renderSlidesWithWarnings() returned %d slides, want 1", len(slides))
 			}
-			want := "md-present: warning: unterminated fenced code block continues to the end of the document\n"
+			want := "Warning: unterminated fenced code block continues to the end of the document.\n"
 			if got := warnings.String(); got != want {
 				t.Fatalf("warnings = %q, want %q", got, want)
 			}
@@ -389,7 +389,7 @@ func TestUnterminatedFenceFixtureWarnsAndPreservesGoldmarkSemantics(t *testing.T
 	if !strings.Contains(string(slides[0]), "This is code, not a second slide") {
 		t.Fatal("unterminated fence fixture did not remain code")
 	}
-	if got := warnings.String(); got != "md-present: warning: unterminated fenced code block continues to the end of the document\n" {
+	if got := warnings.String(); got != "Warning: unterminated fenced code block continues to the end of the document.\n" {
 		t.Fatalf("warnings = %q", got)
 	}
 }
@@ -514,7 +514,7 @@ func TestRenderSlidesSkipsMissingRelativeImage(t *testing.T) {
 	if !strings.Contains(html, "Still rendered.") {
 		t.Fatalf("rendered HTML omitted remaining slide content: %s", html)
 	}
-	if warning := warnings.String(); !strings.Contains(warning, `md-present: warning: skip local media "missing.png"`) {
+	if warning := warnings.String(); !strings.Contains(warning, `Warning: skipped local media "missing.png"`) {
 		t.Fatalf("missing media warning = %q", warning)
 	}
 }
