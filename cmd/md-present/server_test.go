@@ -73,7 +73,7 @@ A --&gt; B
 		}
 		if asset == "app.js" {
 			body := assetResponse.Body.String()
-			for _, expected := range []string{"requestFullscreen", "exitFullscreen", `securityLevel: "strict"`, "htmlLabels: false", `role", "alert"`, "language-mermaid", "mermaidConfigurationDirective", "Mermaid configuration directives are not supported.", "overflowWarningDuration", "checkForUpdate", "/api/update", "scrollBy", "toggleOverview", "closePresentationTab", "window.close()", `role", "grid"`, `role", "gridcell"`, "isMediaControl", "video, audio", "prepareVideoPoster", "captureFirstFrame", "video.currentTime", "canvas.toDataURL"} {
+			for _, expected := range []string{"requestFullscreen", "exitFullscreen", `securityLevel: "strict"`, "htmlLabels: false", `role", "alert"`, "language-mermaid", "mermaidConfigurationDirective", "Mermaid configuration directives are not supported.", "overflowWarningDuration", "checkForUpdate", "/api/update", "/api/source", "saveEditor", "toggleOverview", "closePresentationTab", "window.close()", `role", "grid"`, `role", "gridcell"`, "isMediaControl", "video, audio", "prepareVideoPoster", "captureFirstFrame", "video.currentTime", "canvas.toDataURL"} {
 				if !strings.Contains(body, expected) {
 					t.Errorf("GET /assets/app.js omitted %q", expected)
 				}
@@ -105,6 +105,122 @@ A --&gt; B
 	handler.ServeHTTP(missingResponse, missingRequest)
 	if missingResponse.Code != http.StatusNotFound {
 		t.Fatalf("GET /source.md status = %d, want 404", missingResponse.Code)
+	}
+}
+
+func TestPresentationEditorReadsSavesAndDetectsConflicts(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "slides.md")
+	if err := os.WriteFile(path, []byte("# Before\n\n---\n\n# Untouched"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	presentation := newPresentationState([]template.HTML{"<h1>Before</h1>", "<h1>Untouched</h1>"})
+	handler := presentationHandlerWithOptions(presentation, newTabTracker(func() {}, time.Second), io.Discard, nil, renderOptions{markdownPath: path})
+
+	get := httptest.NewRequest(http.MethodGet, "/api/source?slide=1", nil)
+	get.Host = "127.0.0.1:38473"
+	getResponse := httptest.NewRecorder()
+	handler.ServeHTTP(getResponse, get)
+	if getResponse.Code != http.StatusOK {
+		t.Fatalf("GET /api/source status = %d, body %s", getResponse.Code, getResponse.Body.String())
+	}
+	var source editorSourceResponse
+	if err := json.NewDecoder(getResponse.Body).Decode(&source); err != nil {
+		t.Fatal(err)
+	}
+	if source.Source != "# Before" || source.Revision == "" || source.Slide != 1 || source.Slides != 2 {
+		t.Fatalf("GET /api/source = %#v", source)
+	}
+
+	preview := httptest.NewRequest(http.MethodPost, "/api/source/preview", strings.NewReader(`{"source":"# Preview","revision":"`+source.Revision+`","slide":1}`))
+	preview.Host = "127.0.0.1:38473"
+	preview.Header.Set("Origin", "http://127.0.0.1:38473")
+	preview.Header.Set("Content-Type", "application/json")
+	previewResponse := httptest.NewRecorder()
+	handler.ServeHTTP(previewResponse, preview)
+	if previewResponse.Code != http.StatusOK {
+		t.Fatalf("POST /api/source/preview status = %d, body %s", previewResponse.Code, previewResponse.Body.String())
+	}
+	var previewed editorSaveResponse
+	if err := json.NewDecoder(previewResponse.Body).Decode(&previewed); err != nil {
+		t.Fatal(err)
+	}
+	if previewed.DeckRevision != 1 || !strings.Contains(previewed.HTML, "Preview") {
+		t.Fatalf("POST /api/source/preview response = %#v", previewed)
+	}
+	if got, err := os.ReadFile(path); err != nil || !strings.Contains(string(got), "# Before") {
+		t.Fatalf("preview changed source = %q, %v", got, err)
+	}
+
+	saveBody := `{"source":"# After","revision":"` + source.Revision + `","slide":1}`
+	save := httptest.NewRequest(http.MethodPut, "/api/source", strings.NewReader(saveBody))
+	save.Host = "127.0.0.1:38473"
+	save.Header.Set("Origin", "http://127.0.0.1:38473")
+	save.Header.Set("Content-Type", "application/json")
+	saveResponse := httptest.NewRecorder()
+	handler.ServeHTTP(saveResponse, save)
+	if saveResponse.Code != http.StatusOK {
+		t.Fatalf("PUT /api/source status = %d, body %s", saveResponse.Code, saveResponse.Body.String())
+	}
+	var saved editorSaveResponse
+	if err := json.NewDecoder(saveResponse.Body).Decode(&saved); err != nil {
+		t.Fatal(err)
+	}
+	if saved.Revision == "" || saved.DeckRevision != 2 || !strings.Contains(saved.HTML, "After") {
+		t.Fatalf("PUT /api/source response = %#v", saved)
+	}
+	if got, err := os.ReadFile(path); err != nil || string(got) != "# After\n\n---\n\n# Untouched" {
+		t.Fatalf("saved source = %q, %v", got, err)
+	}
+	if info, err := os.Stat(path); err != nil || info.Mode().Perm() != 0o640 {
+		t.Fatalf("saved source mode = %v, %v", info.Mode(), err)
+	}
+	if slides, revision := presentation.snapshot(); revision != 2 || !strings.Contains(string(slides[0]), "After") || !strings.Contains(string(slides[1]), "Untouched") {
+		t.Fatalf("saved presentation = (%q, %d)", slides, revision)
+	}
+
+	conflict := httptest.NewRequest(http.MethodPut, "/api/source", strings.NewReader(saveBody))
+	conflict.Host = "127.0.0.1:38473"
+	conflict.Header.Set("Origin", "http://127.0.0.1:38473")
+	conflict.Header.Set("Content-Type", "application/json")
+	conflictResponse := httptest.NewRecorder()
+	handler.ServeHTTP(conflictResponse, conflict)
+	if conflictResponse.Code != http.StatusConflict {
+		t.Fatalf("stale PUT /api/source status = %d, want %d", conflictResponse.Code, http.StatusConflict)
+	}
+}
+
+func TestPresentationEditorRejectsInvalidOrCrossOriginSave(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "slides.md")
+	if err := os.WriteFile(path, []byte("# Before"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	presentation := newPresentationState([]template.HTML{"<h1>Before</h1>"})
+	handler := presentationHandlerWithOptions(presentation, newTabTracker(func() {}, time.Second), io.Discard, nil, renderOptions{markdownPath: path})
+	revision := sourceRevision([]byte("# Before"))
+
+	for _, test := range []struct {
+		name, origin, body string
+		want               int
+	}{
+		{name: "cross origin", origin: "https://example.com", body: `{"source":"# After","revision":"` + revision + `","slide":1}`, want: http.StatusForbidden},
+		{name: "invalid deck", origin: "http://127.0.0.1:38473", body: `{"source":"---","revision":"` + revision + `","slide":1}`, want: http.StatusUnprocessableEntity},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPut, "/api/source", strings.NewReader(test.body))
+			request.Host = "127.0.0.1:38473"
+			request.Header.Set("Origin", test.origin)
+			request.Header.Set("Content-Type", "application/json")
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code != test.want {
+				t.Fatalf("PUT /api/source status = %d, want %d", response.Code, test.want)
+			}
+		})
+	}
+	if got, err := os.ReadFile(path); err != nil || string(got) != "# Before" {
+		t.Fatalf("invalid save changed source = %q, %v", got, err)
 	}
 }
 

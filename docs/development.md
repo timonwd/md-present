@@ -38,6 +38,12 @@ layout or navigation changes, repeat the browser smoke test with
 `fixtures/overflow.md` and verify the warning, collapsed indicator, scrolling,
 and navigation boundary behavior.
 
+For editor changes, run `md-present --no-open fixtures/example.md`.
+Open the reported URL, use **Edit** to load the current slide's Markdown, make
+a small change, and save with Cmd/Ctrl+S. Confirm the active preview updates
+without closing the editor, an invalid empty deck remains unsaved with an editor-local error, and
+an external file edit produces a save conflict rather than an overwrite.
+
 For raw HTML or column-layout changes, run `md-present --no-open
 fixtures/layouts.md` and confirm the raw-HTML trust prompt appears. After
 approval, verify the two- and three-column slides in regular view, overview,

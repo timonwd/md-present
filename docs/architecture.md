@@ -24,6 +24,14 @@ presentation. Keep the implementation direct and readable.
 - Print the final local URL exactly once after the listener is ready.
 - Never expose the source file or its directory as an arbitrary filesystem
   endpoint.
+- The in-browser source editor may read and atomically replace only the resolved
+  deck file. Its endpoint must use
+  bounded same-origin JSON, validate a candidate render before writing, and
+  reject an optimistic-concurrency mismatch. Keep the editor surface separate
+  from Markdown rendering so a future editor widget cannot become a second
+  renderer. Use the same fence-aware slide ranges for reads and replacements.
+  Live previews must render candidate content without writing it and must never
+  replace the saved source or presentation revision.
 - Resolve relative Markdown images and videos from the deck directory, and
   embed local absolute paths in the generated page. Allow remote HTTP(S) image
   and video URLs; the viewer's browser loads those directly rather than

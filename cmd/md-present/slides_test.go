@@ -61,6 +61,19 @@ func TestSplitSlidesIgnoresOnlyEmptyEdges(t *testing.T) {
 	}
 }
 
+func TestSlideSegmentsKeepFenceAwareSourceRanges(t *testing.T) {
+	source := "\n# One\n\n---\n\n```text\n---\n```\n\n---\n\n# Three\n"
+	segments := slideSegments(source)
+	if len(segments) != 3 {
+		t.Fatalf("slideSegments() returned %d segments, want 3", len(segments))
+	}
+	for index, want := range []string{"# One", "```text\n---\n```", "# Three"} {
+		if got := source[segments[index].start:segments[index].stop]; got != want {
+			t.Errorf("segment %d = %q, want %q", index+1, got, want)
+		}
+	}
+}
+
 func TestRenderSlidesMarkdownAndSafety(t *testing.T) {
 	source := []byte(`# Title
 

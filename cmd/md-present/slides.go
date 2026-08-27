@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode"
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
@@ -21,6 +22,7 @@ import (
 
 type renderOptions struct {
 	allowRawHTML bool
+	markdownPath string
 }
 
 func newMarkdownRenderer(options renderOptions) goldmark.Markdown {
@@ -39,32 +41,40 @@ func newMarkdownRenderer(options renderOptions) goldmark.Markdown {
 }
 
 func splitSlides(source string) []string {
-	normalized := strings.ReplaceAll(source, "\r\n", "\n")
-	fencedRanges := fencedCodeRanges([]byte(normalized))
-	lines := strings.Split(normalized, "\n")
-	var slides []string
-	var current []string
-	offset := 0
+	segments := slideSegments(source)
+	slides := make([]string, len(segments))
+	for index, segment := range segments {
+		slides[index] = source[segment.start:segment.stop]
+	}
+	return slides
+}
 
-	appendSlide := func() {
-		body := strings.TrimSpace(strings.Join(current, "\n"))
-		if body != "" {
-			slides = append(slides, body)
+func slideSegments(source string) []sourceRange {
+	fencedRanges := fencedCodeRanges([]byte(source))
+	lines := strings.SplitAfter(source, "\n")
+	var segments []sourceRange
+	start := 0
+	offset := 0
+	appendSegment := func(stop int) {
+		body := source[start:stop]
+		trimmedLeft := strings.TrimLeftFunc(body, unicode.IsSpace)
+		trimmed := strings.TrimRightFunc(trimmedLeft, unicode.IsSpace)
+		if trimmed != "" {
+			contentStart := start + len(body) - len(trimmedLeft)
+			segments = append(segments, sourceRange{start: contentStart, stop: contentStart + len(trimmed)})
 		}
-		current = nil
 	}
 
 	for _, line := range lines {
 		lineEnd := offset + len(line)
 		if strings.TrimSpace(line) == "---" && !overlapsRange(offset, lineEnd, fencedRanges) {
-			appendSlide()
-		} else {
-			current = append(current, line)
+			appendSegment(offset)
+			start = lineEnd
 		}
-		offset = lineEnd + 1
+		offset = lineEnd
 	}
-	appendSlide()
-	return slides
+	appendSegment(len(source))
+	return segments
 }
 
 type sourceRange struct {
