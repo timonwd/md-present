@@ -48,26 +48,40 @@ jobs:
           RELEASE_SHA: ${{ steps.release-commit.outputs.sha }}
         with:
           script: |
-            const { data } = await github.request("GET /repos/{owner}/{repo}/actions/workflows/{workflow_id}/runs", {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: "ci.yml",
-              head_sha: process.env.RELEASE_SHA,
-              status: "completed",
-              per_page: 100,
-            });
+            const retryIntervalMs = 30 * 1000;
+            const timeoutMs = 10 * 60 * 1000;
+            const deadline = Date.now() + timeoutMs;
+            let pushRuns = [];
 
-            const pushRuns = data.workflow_runs.filter((run) => run.event === "push");
-            const successfulRun = pushRuns.find((run) => run.conclusion === "success");
-            if (!successfulRun) {
-              const conclusions = pushRuns.length === 0
-                ? "no completed push runs found"
-                : pushRuns.map((run) => `${run.html_url}: ${run.conclusion}`).join(", ");
-              core.setFailed(`CI has not completed successfully for release commit ${process.env.RELEASE_SHA} (${conclusions}).`);
-              return;
+            while (true) {
+              const { data } = await github.request("GET /repos/{owner}/{repo}/actions/workflows/{workflow_id}/runs", {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: "ci.yml",
+                head_sha: process.env.RELEASE_SHA,
+                per_page: 100,
+              });
+
+              pushRuns = data.workflow_runs.filter((run) => run.event === "push");
+              const successfulRun = pushRuns.find((run) => run.conclusion === "success");
+              if (successfulRun) {
+                core.info(`Verified successful CI run: ${successfulRun.html_url}`);
+                return;
+              }
+
+              const remainingMs = deadline - Date.now();
+              if (remainingMs <= 0) {
+                break;
+              }
+
+              core.info(`CI has not completed successfully yet; retrying in 30 seconds (${Math.ceil(remainingMs / 1000)} seconds remaining).`);
+              await new Promise((resolve) => setTimeout(resolve, Math.min(retryIntervalMs, remainingMs)));
             }
 
-            core.info(`Verified successful CI run: ${successfulRun.html_url}`);
+            const conclusions = pushRuns.length === 0
+              ? "no push runs found"
+              : pushRuns.map((run) => `${run.html_url}: ${run.status}/${run.conclusion ?? "pending"}`).join(", ");
+            core.setFailed(`CI did not complete successfully within 10 minutes for release commit ${process.env.RELEASE_SHA} (${conclusions}).`);
 
       - name: Set up pnpm
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6

@@ -26,7 +26,8 @@ Client ID and private key are stored in the `RELEASE_APP_CLIENT_ID` and
 Publishing the release starts `.github/workflows/release.yml`. The workflow
 requires a successful `push` run of `.github/workflows/ci.yml` for the exact
 tagged commit, then verifies that the tag matches the CLI and plugin versions
-before adding artifacts. It does not rerun CI checks during publishing.
+before adding artifacts. It checks CI immediately and then every 30 seconds
+for up to 10 minutes, but does not rerun CI checks during publishing.
 GoReleaser leaves the manually authored release notes unchanged. After the
 artifacts and Homebrew cask are published, it calls the separate `Bump version`
 workflow. That workflow advances the CLI, Codex and Claude plugin manifests,
