@@ -51,7 +51,7 @@ Install an always-running per-user MCP server when an agent can reach localhost 
 md-present mcp install
 ```
 
-The command installs and starts a macOS LaunchAgent, then prints its Streamable HTTP endpoint. The default is `http://127.0.0.1:38473/mcp`; use `--port <port>` during installation when the default conflicts with another local service. Configure that URL in the MCP client.
+The command installs and starts a macOS LaunchAgent, then prints its Streamable HTTP endpoint. The default is `http://127.0.0.1:38473/mcp`; use `--port <port>` during installation when the default conflicts with another local service. Configure that URL in the MCP client. Homebrew upgrades restart an installed MCP LaunchAgent, so it runs the updated binary.
 
 The server exposes `present_file`. Pass an absolute Markdown file path; its containing directory becomes the root for relative images and videos. The tool opens the presentation in the browser and returns its loopback URL. Raw HTML and external media use the same explicit trust boundaries as the CLI: a first call completes with a structured MCP tool error, `approval_required` is `true`, `raw_html` identifies HTML requiring approval, and `external_media` lists blocked remote or outside-directory references. No browser opens. The caller must show the reported content to the user and retry with `allow_raw_html: true` or `allow_external_media: true` only after the corresponding approval.
 
