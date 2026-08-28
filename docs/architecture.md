@@ -85,7 +85,8 @@ ephemeral presentation listeners:
   mandatory.
 - Keep LaunchAgent installation and removal explicit and reversible. The plist
   points to the invoked executable path so Homebrew's stable binary symlink can
-  survive upgrades.
+  survive upgrades; the cask postflight restarts an installed LaunchAgent so its
+  process also adopts the upgraded binary.
 
 ## Coupled browser behavior
 

@@ -71,4 +71,8 @@ homebrew_casks:
         install: |
           if OS.mac?
             system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/md-present"]
+            launch_agent = File.expand_path("~/Library/LaunchAgents/com.timonwd.md-present.mcp.plist")
+            if File.exist?(launch_agent)
+              system_command "/bin/launchctl", args: ["kickstart", "-k", "gui/#{Process.uid}/com.timonwd.md-present.mcp"], must_succeed: false
+            end
           end
