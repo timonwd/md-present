@@ -18,7 +18,7 @@
   --shadow: 0 2rem 5rem rgb(20 25 38 / 14%);
   --stage-gutter: clamp(1rem, 4vw, 3.5rem);
   --content-gutter: clamp(1rem, 3cqw, 3rem);
-  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--theme-font-family, Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
   font-synthesis: none;
 }
 
@@ -35,7 +35,7 @@ body {
 .deck {
   display: grid;
   min-height: 100svh;
-  padding: var(--stage-gutter);
+  padding: var(--theme-stage-gutter, var(--stage-gutter));
   place-items: center;
 }
 
@@ -43,14 +43,14 @@ body {
   position: relative;
   display: none;
   width: min(
-    calc(100vw - var(--stage-gutter) - var(--stage-gutter)),
-    calc((100svh - var(--stage-gutter) - var(--stage-gutter)) * 16 / 9)
+    calc(100vw - var(--theme-stage-gutter, var(--stage-gutter)) - var(--theme-stage-gutter, var(--stage-gutter))),
+    calc((100svh - var(--theme-stage-gutter, var(--stage-gutter)) - var(--theme-stage-gutter, var(--stage-gutter))) * 16 / 9)
   );
   aspect-ratio: 16 / 9;
   container-type: size;
   overflow: hidden;
   background: var(--stage);
-  box-shadow: var(--shadow);
+  box-shadow: var(--theme-shadow, var(--shadow));
 }
 
 .slide.is-active {
@@ -178,9 +178,9 @@ body.is-overview { overflow: auto; }
   width: 100%;
   min-width: 0;
   margin: auto 0;
-  padding: var(--content-gutter);
+  padding: var(--theme-content-gutter, var(--content-gutter));
   font-size: clamp(0.85rem, 1.55vw, 1.85rem);
-  font-size: clamp(0.85rem, 1.55cqw, 1.85rem);
+  font-size: clamp(0.85rem, calc(1.55cqw * var(--theme-layout-scale, 1)), 1.85rem);
   line-height: 1.5;
   overflow-wrap: normal;
   hyphens: manual;
@@ -191,18 +191,23 @@ h1, h2, h3 {
   letter-spacing: -0.035em;
   line-height: 1.05;
   text-wrap: wrap;
+  color: var(--theme-heading-accent, var(--ink));
+  font-family: var(--theme-heading-font-family, inherit);
+  font-weight: var(--theme-heading-weight, 700);
+  letter-spacing: var(--theme-heading-letter-spacing, -0.035em);
+  text-transform: var(--theme-heading-case, none);
 }
 
-h1 { font-size: clamp(2.1rem, 5.3vw, 6.2rem); }
-h1 { font-size: clamp(2.1rem, 5.3cqw, 6.2rem); }
-h2 { font-size: clamp(1.7rem, 3.8vw, 4.5rem); }
-h2 { font-size: clamp(1.7rem, 3.8cqw, 4.5rem); }
-h3 { font-size: clamp(1.3rem, 2.4vw, 2.8rem); }
-h3 { font-size: clamp(1.3rem, 2.4cqw, 2.8rem); }
+h1 { font-size: clamp(2.1rem, calc(5.3vw * var(--theme-heading-scale, 1)), 6.2rem); }
+h1 { font-size: clamp(2.1rem, calc(5.3cqw * var(--theme-heading-scale, 1)), 6.2rem); }
+h2 { font-size: clamp(1.7rem, calc(3.8vw * var(--theme-heading-scale, 1)), 4.5rem); }
+h2 { font-size: clamp(1.7rem, calc(3.8cqw * var(--theme-heading-scale, 1)), 4.5rem); }
+h3 { font-size: clamp(1.3rem, calc(2.4vw * var(--theme-heading-scale, 1)), 2.8rem); }
+h3 { font-size: clamp(1.3rem, calc(2.4cqw * var(--theme-heading-scale, 1)), 2.8rem); }
 p { margin: 0.7em 0; }
 ul, ol { padding-left: 1.25em; }
 li { margin: 0.28em 0; padding-left: 0.18em; }
-a { color: var(--accent); text-underline-offset: 0.14em; }
+a { color: var(--theme-link-color, var(--accent)); text-underline-offset: 0.14em; }
 strong { font-weight: 700; }
 
 .columns {
@@ -236,20 +241,21 @@ th, td {
 th[align="center"], td[align="center"] { text-align: center; }
 th[align="right"], td[align="right"] { text-align: right; }
 
-th { background: var(--code); font-weight: 700; }
+th { background: var(--theme-table-header, var(--code)); font-weight: 700; }
+tbody tr:nth-child(even) { background: var(--theme-table-stripe, transparent); }
 input[type="checkbox"] { margin: 0 0.45em 0 0; accent-color: var(--accent); opacity: 1; }
 
 blockquote {
   margin: 1.2em 0;
   padding-left: 1em;
-  border-left: 0.16em solid var(--accent);
+  border-left: 0.16em solid var(--theme-quote-accent, var(--accent));
   color: var(--muted);
   font-size: 1.12em;
 }
 
 code {
-  border-radius: 0.2em;
-  background: var(--code);
+  border-radius: var(--theme-radius, 0.2em);
+  background: var(--theme-code-background, var(--code));
   padding: 0.12em 0.3em;
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-size: 0.84em;
@@ -259,8 +265,8 @@ pre {
   overflow: auto;
   padding: 1em 1.15em;
   border: 1px solid var(--line);
-  border-radius: 0.35rem;
-  background: var(--code);
+  border-radius: var(--theme-radius, 0.35rem);
+  background: var(--theme-code-background, var(--code));
   line-height: 1.45;
 }
 
@@ -322,6 +328,22 @@ video { display: block; max-width: 100%; max-height: 48vh; max-height: 48cqh; ob
 }
 
 .progress__rule { width: 1.6rem; height: 1px; background: var(--muted); opacity: 0.45; }
+
+.theme-footer {
+  position: fixed;
+  left: clamp(1.2rem, 3vw, 2.5rem);
+  bottom: clamp(1rem, 2.4vw, 2rem);
+  max-width: 40vw;
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.slide:first-child { background: var(--theme-cover-background, var(--stage)); color: var(--theme-cover-ink, inherit); text-align: var(--theme-cover-align, start); }
+.slide:first-child h1, .slide:first-child h2, .slide:first-child h3 { color: var(--theme-cover-ink, var(--theme-heading-accent, var(--ink))); }
 
 .fullscreen-button,
 .overview-button,
@@ -481,7 +503,7 @@ video { display: block; max-width: 100%; max-height: 48vh; max-height: 48cqh; ob
     outline: 0;
   }
   .slide.has-overflow .slide__scroller { overflow: hidden; }
-  .progress, .fullscreen-button, .overview-button, .overflow-warning, .update-notice { display: none; }
+  .progress, .fullscreen-button, .overview-button, .overflow-warning, .update-notice, .theme-footer { display: none; }
 }
 
 .mermaid-diagram {
