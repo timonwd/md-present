@@ -479,6 +479,11 @@ checkForUpdate();
     editorCloseButton.textContent = editorDirty ? "Discard" : "Cancel";
   }
 
+  function updateEditorSaveState() {
+    if (!editorSaveButton) return;
+    editorSaveButton.disabled = !editorDirty || editorSaveInProgress;
+  }
+
   function updateEditorNavigation() {
     if (!editorPreviousButton || !editorNextButton) return;
     editorPreviousButton.disabled = current === 0;
@@ -492,6 +497,7 @@ checkForUpdate();
     if (editorDirty) updateActiveSlide(editorOriginalHTML);
     editorDirty = false;
     updateEditorCancelLabel();
+    updateEditorSaveState();
     setEditorStatus("");
   }
 
@@ -523,6 +529,7 @@ checkForUpdate();
       editorSlide = source.slide;
       editorDirty = false;
       updateEditorCancelLabel();
+      updateEditorSaveState();
       setEditorStatus("");
       updateEditorNavigation();
     } catch (error) {
@@ -572,8 +579,8 @@ checkForUpdate();
     if (!editorSource || !editorSaveButton || !editorDirty) return;
     clearTimeout(editorPreviewTimer);
     editorPreviewGeneration += 1;
-    editorSaveButton.disabled = true;
     editorSaveInProgress = true;
+    updateEditorSaveState();
     setEditorStatus("Saving…");
     try {
       const response = await fetch("/api/source", {
@@ -598,7 +605,7 @@ checkForUpdate();
       setEditorStatus(error instanceof Error ? error.message : "Could not save the Markdown source.", true);
     } finally {
       editorSaveInProgress = false;
-      editorSaveButton.disabled = false;
+      updateEditorSaveState();
     }
   }
 
@@ -638,6 +645,7 @@ checkForUpdate();
     editorSource.addEventListener("input", () => {
       editorDirty = true;
       updateEditorCancelLabel();
+      updateEditorSaveState();
       setEditorStatus("Unsaved changes.");
       scheduleEditorPreview();
     });

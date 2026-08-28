@@ -124,7 +124,7 @@ body.is-overview { overflow: auto; }
 .editor__navigation button { border: 1px solid var(--line); border-radius: 0.35rem; background: var(--stage); color: var(--ink); font: inherit; padding: 0.4rem 0.65rem; cursor: pointer; }
 .editor__close { background: var(--code); color: var(--muted); }
 .editor__save { border-color: var(--accent); background: var(--accent); color: white; }
-.editor__save:disabled { cursor: wait; opacity: 0.65; }
+.editor__save:disabled { border-color: var(--line); background: var(--code); color: var(--muted); cursor: not-allowed; opacity: 0.65; }
 .editor__source { width: 100%; min-height: 0; resize: none; border: 0; outline: 0; background: var(--stage); color: var(--ink); padding: 1rem; font: 0.9rem/1.5 "SFMono-Regular", Consolas, "Liberation Mono", monospace; tab-size: 2; }
 .editor__status { min-width: 0; margin-left: auto; padding: 0.3rem 0.55rem; border: 1px solid var(--line); border-radius: 999px; background: var(--code); color: var(--muted); font-size: 0.78rem; }
 .editor__status.is-error { color: #b42318; }
