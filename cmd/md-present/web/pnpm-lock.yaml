@@ -104,8 +104,8 @@ packages:
   '@types/d3-selection@3.0.11':
     resolution: {integrity: sha512-bhAXu23DJWsrI45xafYpkQ4NtcKMwWnAC/vKrd2l+nxMFuvOT3XMYTIj2opv8vq8AO5Yh7Qac/nSeP/3zjTK0w==}
 
-  '@types/d3-shape@3.1.8':
-    resolution: {integrity: sha512-lae0iWfcDeR7qt7rA88BNiqdvPS5pFVPpo5OfjElwNaT2yyekbM0C9vK+yqBqEmHr6lDkRnYNoTBYlAgJa7a4w==}
+  '@types/d3-shape@3.2.0':
+    resolution: {integrity: sha512-kVd74ta9eof3eJOvbNd1vGKS/XERRyQbT26Og63hIsvDO84cjD5gEOhsXf26w3FSoNlPVz84DOFcKv/oou+fMw==}
 
   '@types/d3-time-format@4.0.3':
     resolution: {integrity: sha512-5xg9rC+wWL8kdDj153qZcsJ0FWiFt0J5RB6LYUNZjwSnesfblqrI/bJ1wBdJ8OQfncgbJG5+2F+qfqnqyzYxyg==}
@@ -158,8 +158,8 @@ packages:
     peerDependencies:
       cytoscape: ^3.2.0
 
-  cytoscape@3.34.1:
-    resolution: {integrity: sha512-Lr0RvH9H75y9ar8h9Toy6u4lxRSCcxUq+hHcQ26sVWo6BnaQp1gwEZOYqwuYTZhyW7npyKnNLP8oJ2p1/3OZ7g==}
+  cytoscape@3.34.2:
+    resolution: {integrity: sha512-Cm2jaj1X/PBNlzV9yH8zcfGOxO7U+CJ/+mxSBVPSchLaugdp4jtlGx5qaHtPRZ6tgiZ5P+o1XoRfJA+ba6KM3g==}
     engines: {node: '>=0.10'}
 
   d3-array@2.12.1:
@@ -313,8 +313,8 @@ packages:
   dompurify@3.4.14:
     resolution: {integrity: sha512-dVoH9z+MY+C9IilgGCk3YfFqjLi3fChm2OiKJMzh6axrJ5qwxqWaZamgmHrpv22CN/KdbZJuGEGgfQoL00LTdg==}
 
-  es-toolkit@1.51.0:
-    resolution: {integrity: sha512-zC2lQGkM7QX+Gm6iM3+WIdZJzthsEd14LvRNJneSO2hzyz/zNBENR8+YXWo1cKxgPBtV6ksPYHELbcwBRzmdCw==}
+  es-toolkit@1.52.0:
+    resolution: {integrity: sha512-XTNEJQh1tY1ZJVcf6ayP/2n4ZPyaHlW2FWs7xvw5ddPuhUVjLD3olQVQS7kf58JbAB48iL0uL/jerTrjtV3lDA==}
 
   fastdom@1.0.12:
     resolution: {integrity: sha512-LB+xjSTEbjHE1cWsxu+tN2Xqr1kpi+V9aADI7sVM5ZMaXyYGPHULQMzpJMYqOTULK/73pUkWVzzObFRBkPr+hg==}
@@ -490,7 +490,7 @@ snapshots:
 
   '@types/d3-selection@3.0.11': {}
 
-  '@types/d3-shape@3.1.8':
+  '@types/d3-shape@3.2.0':
     dependencies:
       '@types/d3-path': 3.1.1
 
@@ -535,7 +535,7 @@ snapshots:
       '@types/d3-scale': 4.0.9
       '@types/d3-scale-chromatic': 3.1.0
       '@types/d3-selection': 3.0.11
-      '@types/d3-shape': 3.1.8
+      '@types/d3-shape': 3.2.0
       '@types/d3-time': 3.0.4
       '@types/d3-time-format': 4.0.3
       '@types/d3-timer': 3.0.2
@@ -564,17 +564,17 @@ snapshots:
     dependencies:
       layout-base: 2.0.1
 
-  cytoscape-cose-bilkent@4.1.0(cytoscape@3.34.1):
+  cytoscape-cose-bilkent@4.1.0(cytoscape@3.34.2):
     dependencies:
       cose-base: 1.0.3
-      cytoscape: 3.34.1
+      cytoscape: 3.34.2
 
-  cytoscape-fcose@2.2.0(cytoscape@3.34.1):
+  cytoscape-fcose@2.2.0(cytoscape@3.34.2):
     dependencies:
       cose-base: 2.2.0
-      cytoscape: 3.34.1
+      cytoscape: 3.34.2
 
-  cytoscape@3.34.1: {}
+  cytoscape@3.34.2: {}
 
   d3-array@2.12.1:
     dependencies:
@@ -758,7 +758,7 @@ snapshots:
     optionalDependencies:
       '@types/trusted-types': 2.0.7
 
-  es-toolkit@1.51.0: {}
+  es-toolkit@1.52.0: {}
 
   fastdom@1.0.12:
     dependencies:
@@ -797,15 +797,15 @@ snapshots:
       '@mermaid-js/parser': 1.2.1
       '@types/d3': 7.4.3
       '@upsetjs/venn.js': 2.0.0
-      cytoscape: 3.34.1
-      cytoscape-cose-bilkent: 4.1.0(cytoscape@3.34.1)
-      cytoscape-fcose: 2.2.0(cytoscape@3.34.1)
+      cytoscape: 3.34.2
+      cytoscape-cose-bilkent: 4.1.0(cytoscape@3.34.2)
+      cytoscape-fcose: 2.2.0(cytoscape@3.34.2)
       d3: 7.9.0
       d3-sankey: 0.12.3
       dagre-d3-es: 7.0.14
       dayjs: 1.11.23
       dompurify: 3.4.14
-      es-toolkit: 1.51.0
+      es-toolkit: 1.52.0
       fastdom: 1.0.12
       katex: 0.16.47
       khroma: 2.1.0
