@@ -17,6 +17,15 @@ presentation. Keep the implementation direct and readable.
   Mermaid runtime so presentations remain offline-capable.
 - Keep dependencies minimal. Goldmark remains the authority for CommonMark
   parsing and raw-HTML safety.
+- Deck themes are optional front-matter references to JSON token files; the
+  `.json` extension is optional. Resolve a bare name locally first, then from
+  `~/.md-present/themes/`. Keep the schema deliberately small
+  and validate every value before producing CSS:
+  colors are hexadecimal, typography and spacing are constrained enums or
+  values, and unknown JSON fields are rejected. Keep logos and other media out
+  of the theme contract unless their trust and embedding boundary is designed
+  explicitly. Do not accept arbitrary CSS, HTML, or JavaScript.
+  Include the resolved theme file in live-reload input tracking.
 
 ## Security and runtime invariants
 

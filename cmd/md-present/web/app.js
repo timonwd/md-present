@@ -146,6 +146,14 @@ checkForUpdate();
       securityLevel: "strict",
       suppressErrorRendering: true,
       theme,
+      themeVariables: {
+        primaryColor: getComputedStyle(document.documentElement).getPropertyValue("--theme-mermaid-node").trim() || getComputedStyle(document.documentElement).getPropertyValue("--accent").trim(),
+        primaryTextColor: getComputedStyle(document.documentElement).getPropertyValue("--theme-mermaid-label").trim() || getComputedStyle(document.documentElement).getPropertyValue("--ink").trim(),
+        primaryBorderColor: getComputedStyle(document.documentElement).getPropertyValue("--line").trim(),
+        lineColor: getComputedStyle(document.documentElement).getPropertyValue("--theme-mermaid-edge").trim() || getComputedStyle(document.documentElement).getPropertyValue("--muted").trim(),
+        secondaryColor: getComputedStyle(document.documentElement).getPropertyValue("--code").trim(),
+        tertiaryColor: getComputedStyle(document.documentElement).getPropertyValue("--stage").trim(),
+      },
       htmlLabels: false,
     });
 

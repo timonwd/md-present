@@ -93,6 +93,52 @@ Hello, world.
 ```
 
 The structured view opens in your browser and reloads when the Markdown file or local media changes.
+
+### Themes
+
+Decks can share a small, safe theme file. Reference it in front matter at the very start of each Markdown document:
+
+```md
+---
+theme: ../shared/acme-theme
+---
+
+# Quarterly review
+```
+
+The `.json` extension is optional; the shorter `theme: acme-theme` form is recommended. md-present first resolves the name relative to the deck, then—when it is a bare name such as `acme-theme`—also looks in `~/.md-present/themes/acme-theme.json`. This lets you install an organization theme once and select it from any document with `theme: acme-theme`.
+
+The referenced JSON file contains only visual tokens; it cannot add CSS, HTML, or JavaScript. Reuse the same file from any number of decks. All fields are optional, so omitted values retain md-present's default appearance:
+
+```json
+{
+  "colors": {"canvas": "#f4f1ea", "stage": "#fffaf0", "ink": "#202020", "accent": "#a03d2f"},
+  "darkColors": {"canvas": "#15110f", "stage": "#231b17", "ink": "#fff7ed", "accent": "#ffb4a8"},
+  "fontFamily": "Avenir Next, Arial, sans-serif",
+  "headingFontFamily": "Avenir Next Condensed, Arial, sans-serif",
+  "headingWeight": "semibold",
+  "headingLetterSpacing": "-0.04em",
+  "headingAccent": "#a03d2f",
+  "stageGutter": "2rem",
+  "contentGutter": "2.5rem",
+  "radius": "0.5rem",
+  "shadow": "subtle",
+  "footer": "Acme · Internal"
+}
+```
+
+`colors`, `darkColors`, and optional `printColors` accept the tokens `canvas`, `stage`, `ink`, `muted`, `line`, `accent`, and `code`, each as a hexadecimal color. The remaining optional tokens are:
+
+| Area | Tokens |
+| --- | --- |
+| Typography | `fontFamily`, `headingFontFamily`, `headingWeight` (`regular`, `medium`, `semibold`, `bold`), `headingLetterSpacing`, `headingCase`, `headingAccent` |
+| Layout and surfaces | `stageGutter`, `contentGutter`, `radius`, `shadow` (`none`, `subtle`, `strong`), `layout` (`default`, `compact`, `editorial`) |
+| Content | `tableHeader`, `tableStripe`, `codeBackground`, `quoteAccent`, `linkColor` |
+| Cover slide | `coverAlignment` (`start`, `center`, `end`), `coverBackground`, `coverInk` |
+| Mermaid | `mermaidNode`, `mermaidEdge`, `mermaidLabel` |
+| Repeated metadata | `footer` (a short, single-line label) |
+
+Font stacks accept a conventional comma-separated value. Length values accept one CSS length such as `2rem` or `24px`; all color values use hexadecimal notation. The tokens apply consistently to slides, controls, tables, code backgrounds, and Mermaid diagrams. A changed theme file triggers the same live reload as a changed deck file.
 Before a deck with raw HTML opens, md-present asks whether you trust it; use `--allow-raw-html` to opt in without the prompt.
 Remote media and local media outside the deck folder use a separate trust prompt; use `--allow-external-media` to opt in without that prompt.
 Use `md-present --no-open plan.md` to start without opening a browser.

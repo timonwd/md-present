@@ -23,6 +23,9 @@ import (
 type renderOptions struct {
 	allowRawHTML bool
 	markdownPath string
+	themeCSS     template.CSS
+	themePath    string
+	themeFooter  string
 }
 
 func newMarkdownRenderer(options renderOptions) goldmark.Markdown {
@@ -51,10 +54,15 @@ func splitSlides(source string) []string {
 
 func slideSegments(source string) []sourceRange {
 	fencedRanges := fencedCodeRanges([]byte(source))
-	lines := strings.SplitAfter(source, "\n")
-	var segments []sourceRange
 	start := 0
-	offset := 0
+	if strings.HasPrefix(source, "---\n") {
+		if end := strings.Index(source[4:], "\n---\n"); end >= 0 {
+			start = 4 + end + len("\n---\n")
+		}
+	}
+	lines := strings.SplitAfter(source[start:], "\n")
+	var segments []sourceRange
+	offset := start
 	appendSegment := func(stop int) {
 		body := source[start:stop]
 		trimmedLeft := strings.TrimLeftFunc(body, unicode.IsSpace)
@@ -118,6 +126,11 @@ func renderSlidesWithWarnings(source []byte, deckDirectory string, warnings io.W
 }
 
 func renderSlidesWithOptions(source []byte, deckDirectory string, warnings io.Writer, options renderOptions) ([]template.HTML, error) {
+	var err error
+	source, _, err = parseDeckTheme(source, deckDirectory)
+	if err != nil {
+		return nil, err
+	}
 	if rawHTMLPresent(source) && !options.allowRawHTML {
 		return nil, fmt.Errorf("raw HTML requires --allow-raw-html")
 	}
