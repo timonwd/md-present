@@ -14,10 +14,11 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/yuin/goldmark"
-	"github.com/yuin/goldmark/ast"
-	"github.com/yuin/goldmark/extension"
-	"github.com/yuin/goldmark/text"
+	"github.com/yuin/goldmark/v2/ast"
+	"github.com/yuin/goldmark/v2/extension"
+	"github.com/yuin/goldmark/v2/parser"
+	goldmarkhtml "github.com/yuin/goldmark/v2/renderer/html"
+	"github.com/yuin/goldmark/v2/text"
 )
 
 type renderOptions struct {
@@ -25,19 +26,32 @@ type renderOptions struct {
 	markdownPath string
 }
 
-func newMarkdownRenderer(options renderOptions) goldmark.Markdown {
-	extensions := []goldmark.Extender{
-		extension.Linkify,
-		extension.NewTable(extension.WithTableCellAlignMethod(extension.TableCellAlignAttribute)),
-		extension.Strikethrough,
-		extension.TaskList,
+type markdownRenderer struct {
+	parser   parser.Parser
+	renderer goldmarkhtml.Renderer
+}
+
+func newMarkdownRenderer(options renderOptions) markdownRenderer {
+	parserExtensions := []parser.Extension{
+		extension.NewLinkifyParser(),
+		extension.NewTableParser(),
+		extension.NewStrikethroughParser(),
+		extension.NewTaskListItemParser(),
+	}
+	rendererExtensions := []goldmarkhtml.Extension{
+		extension.NewTableHTMLRenderer(extension.WithTableCellAlignMethod(extension.TableCellAlignAttribute)),
+		extension.NewStrikethroughHTMLRenderer(),
+		extension.NewTaskListItemHTMLRenderer(),
 		syntaxHighlighting,
 		videoRendering,
 	}
 	if options.allowRawHTML {
-		extensions = append(extensions, rawHTMLRendering)
+		rendererExtensions = append(rendererExtensions, rawHTMLRendering)
 	}
-	return goldmark.New(goldmark.WithExtensions(extensions...))
+	return markdownRenderer{
+		parser:   parser.New(parser.WithExtensions(parserExtensions...)),
+		renderer: goldmarkhtml.New(goldmarkhtml.WithExtensions(rendererExtensions...)),
+	}
 }
 
 func splitSlides(source string) []string {
@@ -84,15 +98,14 @@ type sourceRange struct {
 
 func fencedCodeRanges(source []byte) []sourceRange {
 	markdown := newMarkdownRenderer(renderOptions{})
-	document := markdown.Parser().Parse(text.NewReader(source))
+	document := markdown.parser.Parse(source)
 	var ranges []sourceRange
 	_ = ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
-		if !entering || node.Kind() != ast.KindFencedCodeBlock {
+		block, ok := node.(*ast.CodeBlock)
+		if !entering || !ok || block.CodeBlockKind != ast.CodeBlockKindFenced {
 			return ast.WalkContinue, nil
 		}
-		lines := node.Lines()
-		for i := 0; i < lines.Len(); i++ {
-			segment := lines.At(i)
+		for _, segment := range block.Value.Segments() {
 			ranges = append(ranges, sourceRange{start: segment.Start, stop: segment.Stop})
 		}
 		return ast.WalkContinue, nil
@@ -131,12 +144,12 @@ func renderSlidesWithOptions(source []byte, deckDirectory string, warnings io.Wr
 	rendered := make([]template.HTML, 0, len(markdownSlides))
 	for _, slide := range markdownSlides {
 		slideSource := []byte(slide)
-		document := renderer.Parser().Parse(text.NewReader(slideSource))
-		if err := embedLocalMedia(document, deckDirectory, warnings); err != nil {
+		document := renderer.parser.Parse(slideSource)
+		if err := embedLocalMedia(document, slideSource, deckDirectory, warnings); err != nil {
 			return nil, err
 		}
 		var output bytes.Buffer
-		if err := renderer.Renderer().Render(&output, slideSource, document); err != nil {
+		if err := renderer.renderer.Render(&output, slideSource, document); err != nil {
 			return nil, err
 		}
 		// Raw HTML reaches this point only after the CLI trust gate. Markdown
@@ -152,13 +165,14 @@ func warnUnterminatedFencedCodeBlocks(source []byte, warnings io.Writer) {
 	}
 
 	markdown := newMarkdownRenderer(renderOptions{})
-	document := markdown.Parser().Parse(text.NewReader(source))
+	document := markdown.parser.Parse(source)
 	_ = ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
-		if !entering || node.Kind() != ast.KindFencedCodeBlock {
+		block, ok := node.(*ast.CodeBlock)
+		if !entering || !ok || block.CodeBlockKind != ast.CodeBlockKindFenced {
 			return ast.WalkContinue, nil
 		}
-		lines := node.Lines()
-		if lines.Len() == 0 || lines.At(lines.Len()-1).Stop != len(source) {
+		lines := block.Value.Segments()
+		if len(lines) == 0 || lines[len(lines)-1].Stop != len(source) {
 			return ast.WalkContinue, nil
 		}
 		fmt.Fprintln(warnings, "Warning: unterminated fenced code block continues to the end of the document.")
@@ -167,7 +181,7 @@ func warnUnterminatedFencedCodeBlocks(source []byte, warnings io.Writer) {
 }
 
 func externalMediaReferences(source []byte, deckDirectory string) []string {
-	document := newMarkdownRenderer(renderOptions{}).Parser().Parse(text.NewReader(source))
+	document := newMarkdownRenderer(renderOptions{}).parser.Parse(source)
 	seen := make(map[string]struct{})
 	var references []string
 	_ = ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
@@ -175,7 +189,7 @@ func externalMediaReferences(source []byte, deckDirectory string) []string {
 		if !entering || !ok {
 			return ast.WalkContinue, nil
 		}
-		destination := string(image.Destination)
+		destination := image.Destination.Value(source)
 		if !isExternalMediaDestination(destination, deckDirectory) {
 			return ast.WalkContinue, nil
 		}
@@ -190,7 +204,7 @@ func externalMediaReferences(source []byte, deckDirectory string) []string {
 }
 
 func localMediaPaths(source []byte, deckDirectory string) []string {
-	document := newMarkdownRenderer(renderOptions{}).Parser().Parse(text.NewReader(source))
+	document := newMarkdownRenderer(renderOptions{}).parser.Parse(source)
 	seen := make(map[string]struct{})
 	var paths []string
 	_ = ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
@@ -198,7 +212,7 @@ func localMediaPaths(source []byte, deckDirectory string) []string {
 		if !entering || !ok {
 			return ast.WalkContinue, nil
 		}
-		path, ok := localMediaPath(string(image.Destination), deckDirectory)
+		path, ok := localMediaPath(image.Destination.Value(source), deckDirectory)
 		if !ok {
 			return ast.WalkContinue, nil
 		}
@@ -213,7 +227,7 @@ func localMediaPaths(source []byte, deckDirectory string) []string {
 }
 
 func rawHTMLPresent(source []byte) bool {
-	document := newMarkdownRenderer(renderOptions{}).Parser().Parse(text.NewReader(source))
+	document := newMarkdownRenderer(renderOptions{}).parser.Parse(source)
 	found := false
 	_ = ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
 		if entering && (node.Kind() == ast.KindHTMLBlock || node.Kind() == ast.KindRawHTML) {
@@ -272,13 +286,13 @@ func pathIsOutsideDirectory(path, directory string) bool {
 	return err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator))
 }
 
-func embedLocalMedia(document ast.Node, deckDirectory string, warnings io.Writer) error {
+func embedLocalMedia(document ast.Node, source []byte, deckDirectory string, warnings io.Writer) error {
 	return ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
 		image, ok := node.(*ast.Image)
 		if !entering || !ok {
 			return ast.WalkContinue, nil
 		}
-		destination := string(image.Destination)
+		destination := image.Destination.Value(source)
 		parsed, err := url.Parse(destination)
 		if err != nil {
 			return ast.WalkContinue, nil
@@ -309,7 +323,7 @@ func embedLocalMedia(document ast.Node, deckDirectory string, warnings io.Writer
 			// to retry this request itself.
 			parent := image.Parent()
 			if parent != nil {
-				parent.RemoveChild(parent, image)
+				parent.RemoveChild(image)
 			}
 			if warnings != nil {
 				fmt.Fprintf(warnings, "Warning: skipped local media %q: %v\n", destination, err)
@@ -320,9 +334,9 @@ func embedLocalMedia(document ast.Node, deckDirectory string, warnings io.Writer
 		if contentType == "" {
 			contentType = http.DetectContentType(data)
 		}
-		image.Destination = []byte("data:" + contentType + ";base64," + base64.StdEncoding.EncodeToString(data))
+		image.Destination = text.NewSingleLineValueFromString("data:"+contentType+";base64,"+base64.StdEncoding.EncodeToString(data), text.IdentityDecoder)
 		if strings.HasPrefix(contentType, "video/") {
-			image.SetAttributeString("md-present-embedded-video", true)
+			image.SetAttribute("md-present-embedded-video", text.NewMultiLineValue("true", text.IdentityDecoder))
 		}
 		return ast.WalkContinue, nil
 	})
