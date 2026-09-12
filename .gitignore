@@ -8,3 +8,4 @@
 .DS_Store
 /.pnpm-store
 /.worktrees
+/graphify-out
