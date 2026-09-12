@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"strings"
 	"testing"
-
-	"github.com/yuin/goldmark"
 )
 
 func TestSyntaxHighlightingHighlightsKnownLanguage(t *testing.T) {
@@ -66,9 +64,10 @@ func TestSyntaxHighlightingEscapesLanguageClass(t *testing.T) {
 
 func renderMarkdownWithSyntaxHighlighting(t *testing.T, source string) string {
 	t.Helper()
-	markdown := goldmark.New(goldmark.WithExtensions(syntaxHighlighting))
+	markdown := newMarkdownRenderer(renderOptions{})
 	var output bytes.Buffer
-	if err := markdown.Convert([]byte(source), &output); err != nil {
+	input := []byte(source)
+	if err := markdown.renderer.Render(&output, input, markdown.parser.Parse(input)); err != nil {
 		t.Fatalf("render Markdown: %v", err)
 	}
 	return output.String()
