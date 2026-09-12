@@ -118,6 +118,7 @@ body.is-overview { overflow: auto; }
 .editor__navigation button { width: 2.4rem; }
 .editor__slide-number { min-width: 3.8rem; color: var(--muted); font-size: 0.82rem; text-align: center; }
 .editor__actions button { width: 5.5rem; }
+.editor__corner-close { display: grid; width: 2.25rem; height: 2.25rem; padding: 0; place-items: center; font-size: 1.35rem; line-height: 1; }
 .editor__header button,
 .editor__close,
 .editor__save,
