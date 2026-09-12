@@ -1,0 +1,35 @@
+{
+  "colors": {
+    "canvas": "#f4f1ea",
+    "stage": "#fffaf0",
+    "ink": "#202020",
+    "accent": "#a03d2f"
+  },
+  "darkColors": {
+    "canvas": "#15110f",
+    "stage": "#231b17",
+    "ink": "#fff7ed",
+    "accent": "#ffb4a8"
+  },
+  "fontFamily": "Avenir Next, Arial, sans-serif",
+  "headingFontFamily": "Avenir Next Condensed, Arial, sans-serif",
+  "headingWeight": "semibold",
+  "headingLetterSpacing": "-0.04em",
+  "headingAccent": "#a03d2f",
+  "contentGutter": "2rem",
+  "radius": "0.5rem",
+  "shadow": "subtle",
+  "tableHeader": "#efe3cf",
+  "tableStripe": "#fbf3e6",
+  "codeBackground": "#f4ead8",
+  "quoteAccent": "#a03d2f",
+  "linkColor": "#8c3025",
+  "coverAlignment": "center",
+  "coverBackground": "#f1ddc0",
+  "coverInk": "#202020",
+  "layout": "editorial",
+  "mermaidNode": "#d68072",
+  "mermaidEdge": "#8c3025",
+  "mermaidLabel": "#202020",
+  "footer": "Acme · Internal"
+}

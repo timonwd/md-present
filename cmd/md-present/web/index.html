@@ -7,6 +7,7 @@
     <title>{{.Title}}</title>
     <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/assets/style.css">
+    {{if .ThemeCSS}}<style>{{.ThemeCSS}}</style>{{end}}
   </head>
   <body data-revision="{{.Revision}}">
     <main class="deck" id="slide-deck" aria-live="polite" aria-keyshortcuts="O Escape">
@@ -54,6 +55,7 @@
     <a class="update-notice" href="https://github.com/timonwd/md-present/releases/latest" role="status" hidden>
       <span class="update-notice__text"></span>
     </a>
+    {{if .Footer}}<div class="theme-footer">{{.Footer}}</div>{{end}}
     <div class="progress" aria-hidden="true"><span id="current">1</span><span class="progress__rule"></span><span>{{len .Slides}}</span></div>
     <script defer src="/assets/mermaid.min.js"></script>
     <script defer src="/assets/app.js"></script>

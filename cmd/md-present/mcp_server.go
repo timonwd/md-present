@@ -97,6 +97,13 @@ func (m *mcpPresentationManager) present(_ context.Context, input presentFileInp
 	}
 
 	rendering := renderOptions{allowRawHTML: input.AllowRawHTML}
+	theme, err := loadDeckTheme(source, filepath.Dir(path))
+	if err != nil {
+		return presentFileOutput{}, fmt.Errorf("load presentation theme: %w", err)
+	}
+	rendering.themeCSS = template.CSS(theme.css) // Theme values are allowlisted in loadDeckTheme.
+	rendering.themePath = theme.path
+	rendering.themeFooter = theme.footer
 	var warnings bytes.Buffer
 	slides, err := renderSlidesWithOptions(source, filepath.Dir(path), &warnings, rendering)
 	if err != nil {
