@@ -38,6 +38,8 @@ github.com/yuin/goldmark/v2 v2.1.1 h1:DH0Z59zTQWPgs+N4j1Gz5XEwnF8eoEZHCqSdaw+QQh
 github.com/yuin/goldmark/v2 v2.1.1/go.mod h1:G6M4/qOFtfn01/o14BU1UR2Lo5N3S9Qo7xCuz/sHjGQ=
 github.com/yuin/goldmark/v2 v2.1.3 h1:+DO/6TNcFOND7sBXJJ8kTmmfQjrZ3qpXP95wyRf3QNU=
 github.com/yuin/goldmark/v2 v2.1.3/go.mod h1:G6M4/qOFtfn01/o14BU1UR2Lo5N3S9Qo7xCuz/sHjGQ=
+github.com/yuin/goldmark/v2 v2.1.4 h1:+Ritw1f1EMlcHO2ELF3kjpXFjla+2sGVMFPgX5IXXpc=
+github.com/yuin/goldmark/v2 v2.1.4/go.mod h1:G6M4/qOFtfn01/o14BU1UR2Lo5N3S9Qo7xCuz/sHjGQ=
 golang.org/x/mod v0.39.0 h1:UF5zwQdCRRUpHfyPwr7d4UrGiVeldIsogtzWVnczL74=
 golang.org/x/mod v0.39.0/go.mod h1:bvIbwjQ0HUFFf5AKukeeYQG4ZBUG9yxQbR9aEweIwYY=
 golang.org/x/oauth2 v0.35.0 h1:Mv2mzuHuZuY2+bkyWXIHMfhNdJAdwW3FuWeCPYN5GVQ=
