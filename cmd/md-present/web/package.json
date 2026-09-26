@@ -9,6 +9,6 @@
     "assets": "bash scripts/sync-mermaid.sh"
   },
   "devDependencies": {
-    "mermaid": "11.17.2"
+    "mermaid": "12.0.0"
   }
 }
