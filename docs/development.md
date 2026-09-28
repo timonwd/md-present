@@ -50,6 +50,14 @@ approval, verify the two- and three-column slides in regular view, overview,
 and print preview; confirm the local image is embedded and inline HTML remains
 visible. Use `--allow-raw-html` only to exercise the explicit opt-in path.
 
+For theme changes, create a small deck with top-of-file `theme:` front matter
+and a shared JSON theme file. The front-matter theme name may omit `.json`; test
+both forms for a deck-relative theme and a bare theme resolved from
+`~/.md-present/themes/`. Confirm the rendered page applies the selected colors
+and typography in both system color schemes, including a Mermaid slide, then
+edit the theme file and confirm the open presentation reloads. Invalid or
+unknown theme fields must fail before the browser opens.
+
 For Mermaid renderer or browser changes, run `md-present --no-open
 fixtures/mermaid-types.md` and open the printed URL. Confirm the eight baseline
 diagrams render as SVG images, the invalid diagram and configuration-directive

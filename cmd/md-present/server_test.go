@@ -23,6 +23,8 @@ func TestPresentationHandler(t *testing.T) {
 	presentation := newPresentationState([]template.HTML{`<h1>Expected slide</h1><pre><code class="language-mermaid">flowchart LR
 A --&gt; B
 </code></pre>`})
+	presentation.themeCSS = template.CSS(":root {--accent:#a03d2f;}")
+	presentation.themeFooter = "Acme · Internal"
 	handler := presentationHandler(presentation, tracker, io.Discard)
 
 	request := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -46,6 +48,12 @@ A --&gt; B
 	}
 	if !strings.Contains(response.Body.String(), `aria-keyshortcuts="O Escape"`) {
 		t.Fatal("GET / omitted keyboard shortcuts")
+	}
+	if !strings.Contains(response.Body.String(), `:root {--accent:#a03d2f;}`) {
+		t.Fatal("GET / omitted the configured theme CSS")
+	}
+	if !strings.Contains(response.Body.String(), `class="theme-footer">Acme · Internal`) {
+		t.Fatal("GET / omitted the configured theme footer")
 	}
 	csp := response.Header().Get("Content-Security-Policy")
 	if csp == "" {

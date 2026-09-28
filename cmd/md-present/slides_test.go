@@ -74,6 +74,19 @@ func TestSlideSegmentsKeepFenceAwareSourceRanges(t *testing.T) {
 	}
 }
 
+func TestSlideSegmentsExcludeDocumentFrontMatter(t *testing.T) {
+	source := "---\ntheme: shared\n---\n# One\n\n---\n\n# Two\n"
+	segments := slideSegments(source)
+	if len(segments) != 2 {
+		t.Fatalf("slideSegments() returned %d segments, want 2", len(segments))
+	}
+	for index, want := range []string{"# One", "# Two"} {
+		if got := source[segments[index].start:segments[index].stop]; got != want {
+			t.Errorf("segment %d = %q, want %q", index+1, got, want)
+		}
+	}
+}
+
 func TestRenderSlidesMarkdownAndSafety(t *testing.T) {
 	source := []byte(`# Title
 
