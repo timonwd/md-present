@@ -19,13 +19,14 @@ cask "md-present" do
 
   binary "md-present"
 
-  postflight do
-    if OS.mac?
-      system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/md-present"]
-      launch_agent = File.expand_path("~/Library/LaunchAgents/com.timonwd.md-present.mcp.plist")
-      if File.exist?(launch_agent)
-        system_command "/bin/launchctl", args: ["kickstart", "-k", "gui/#{Process.uid}/com.timonwd.md-present.mcp"], must_succeed: false
-      end
+  postflight_steps do
+    on_macos do
+      run "/usr/bin/xattr",
+          args: ["-dr", "com.apple.quarantine", "{{staged_path}}/md-present"]
+      run "/bin/launchctl",
+          args: ["kickstart", "-k", "gui/#{Process.uid}/com.timonwd.md-present.mcp"],
+          must_succeed: false,
+          print_stderr: false
     end
   end
 
