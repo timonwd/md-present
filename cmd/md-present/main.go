@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"html/template"
 	"io"
 	"os"
 	"path/filepath"
@@ -64,6 +65,14 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return 1
 	}
 	rendering := renderOptions{allowRawHTML: config.allowRawHTML}
+	theme, err := loadDeckTheme(source, filepath.Dir(path))
+	if err != nil {
+		fmt.Fprintf(stderr, "Error: load presentation theme: %v\n", err)
+		return 1
+	}
+	rendering.themeCSS = template.CSS(theme.css) // Theme values are allowlisted in loadDeckTheme.
+	rendering.themePath = theme.path
+	rendering.themeFooter = theme.footer
 	if rawHTMLPresent(source) && !rendering.allowRawHTML {
 		trusted, err := confirmRawHTML(stdin, stderr, path)
 		if err != nil {
