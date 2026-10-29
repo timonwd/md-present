@@ -120,7 +120,7 @@ jobs:
         uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7
         with:
           distribution: goreleaser
-          version: v2.18.3
+          version: v2.19.0
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ steps.release-app-token.outputs.token }}
