@@ -117,3 +117,33 @@ func TestDeckThemeAcceptsExtensionInFrontMatter(t *testing.T) {
 		t.Fatalf("deckThemeCSS() = (%q, %v), want %q", path, err, themePath)
 	}
 }
+
+func TestResolveThemePathAllowsOneParentRelativeSharedTheme(t *testing.T) {
+	root := t.TempDir()
+	deckDirectory := filepath.Join(root, "decks")
+	themePath := filepath.Join(root, "shared", "acme.json")
+	if err := os.MkdirAll(filepath.Dir(themePath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(themePath, []byte(`{"colors":{"accent":"#a03d2f"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := resolveThemePath("../shared/acme", deckDirectory)
+	if err != nil || got != themePath {
+		t.Fatalf("resolveThemePath() = (%q, %v), want %q", got, err, themePath)
+	}
+}
+
+func TestResolveThemePathRejectsAbsoluteAndEscapingReferences(t *testing.T) {
+	deckDirectory := filepath.Join(t.TempDir(), "decks")
+	for _, reference := range []string{
+		filepath.Join("..", "..", "secret"),
+		"../../shared/../secret",
+		filepath.Join("/", "tmp", "secret"),
+	} {
+		if _, err := resolveThemePath(reference, deckDirectory); err == nil {
+			t.Errorf("resolveThemePath(%q) succeeded, want an error", reference)
+		}
+	}
+}

@@ -106,10 +106,19 @@ func resolveThemePath(reference, deckDirectory string) (string, error) {
 	if !strings.HasSuffix(strings.ToLower(path), themeFileExtension) {
 		path += themeFileExtension
 	}
-	if filepath.IsAbs(path) {
-		return path, nil
+	if filepath.IsAbs(path) || filepath.VolumeName(path) != "" {
+		return "", fmt.Errorf("theme paths must be relative to the deck")
 	}
-	localPath := filepath.Join(deckDirectory, path)
+	base := deckDirectory
+	parentPrefix := ".." + string(filepath.Separator)
+	if strings.HasPrefix(path, parentPrefix) {
+		path = strings.TrimPrefix(path, parentPrefix)
+		base = filepath.Dir(deckDirectory)
+	}
+	if !filepath.IsLocal(path) {
+		return "", fmt.Errorf("theme paths may not escape the deck directory and its parent")
+	}
+	localPath := filepath.Join(base, path)
 	if _, err := os.Stat(localPath); err == nil || !isBareThemeName(reference) {
 		return localPath, nil
 	}
