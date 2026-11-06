@@ -87,7 +87,7 @@ Video destinations ending in `.mp4`, `.m4v`, `.mov`, `.ogv`, `.ogg`, or `.webm` 
 2. Keep local media beside the deck or in a relative subdirectory when the presentation must work offline.
 3. Review raw HTML and remote, absolute-path, and outside-deck media with the user before running the deck. Do not pass `--allow-raw-html` or `--allow-external-media` unless the user explicitly approves the corresponding content; these flags bypass separate trust prompts and are suitable only for intentional, reviewed input or non-interactive automation.
 
-Do not introduce or promise user configuration, custom themes beyond automatic light and dark mode, presenter notes, transitions, or math rendering. Fenced Mermaid diagrams and recognized code languages render locally from embedded assets.
+Decks may select a reusable JSON token theme through top-of-file `theme:` front matter. The `.json` extension is optional, though omitting it is preferred: bare names resolve from the deck directory and then `~/.md-present/themes/`; paths resolve relative to the deck. Keep the schema limited to the documented colors, font stack, and gutter values; do not use raw HTML or promise arbitrary CSS, presenter notes, transitions, or math rendering. Fenced Mermaid diagrams and recognized code languages render locally from embedded assets.
 
 ## Run the presentation
 

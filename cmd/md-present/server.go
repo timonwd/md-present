@@ -43,11 +43,15 @@ type pageData struct {
 	Revision uint64
 	Title    string
 	Editor   bool
+	ThemeCSS template.CSS
+	Footer   string
 }
 
 type presentationState struct {
 	mu          sync.RWMutex
 	slides      []template.HTML
+	themeCSS    template.CSS
+	themeFooter string
 	revision    uint64
 	subscribers map[chan uint64]struct{}
 }
@@ -165,12 +169,25 @@ func (p *presentationState) snapshot() ([]template.HTML, uint64) {
 }
 
 func (p *presentationState) update(slides []template.HTML) bool {
+	css, footer := p.themeSnapshot()
+	return p.updateDeck(slides, css, footer)
+}
+
+func (p *presentationState) themeSnapshot() (template.CSS, string) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.themeCSS, p.themeFooter
+}
+
+func (p *presentationState) updateDeck(slides []template.HTML, themeCSS template.CSS, themeFooter string) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if slices.Equal(p.slides, slides) {
+	if slices.Equal(p.slides, slides) && p.themeCSS == themeCSS && p.themeFooter == themeFooter {
 		return false
 	}
 	p.slides = slides
+	p.themeCSS = themeCSS
+	p.themeFooter = themeFooter
 	p.revision++
 	for subscriber := range p.subscribers {
 		select {
@@ -410,7 +427,8 @@ func presentationHandlerWithOptions(presentation *presentationState, tracker *ta
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
 		slides, revision := presentation.snapshot()
-		if err := pageTemplate.Execute(w, pageData{Slides: slides, Revision: revision, Title: title, Editor: options.markdownPath != ""}); err != nil {
+		themeCSS, footer := presentation.themeSnapshot()
+		if err := pageTemplate.Execute(w, pageData{Slides: slides, Revision: revision, Title: title, Editor: options.markdownPath != "", ThemeCSS: themeCSS, Footer: footer}); err != nil {
 			http.Error(w, "render presentation", http.StatusInternalServerError)
 		}
 	})
@@ -569,6 +587,8 @@ func startPresentation(parent context.Context, markdownPath string, slides []tem
 	ctx, stop := context.WithCancel(parent)
 	tracker := newTabTracker(stop, tabCloseGrace)
 	presentation := newPresentationState(slides)
+	presentation.themeCSS = options.themeCSS
+	presentation.themeFooter = options.themeFooter
 	updates := newUpdateState()
 	server := &http.Server{
 		Handler:           presentationHandlerWithOptions(presentation, tracker, stderr, updates, withMarkdownPath(options, markdownPath), presentationTitle(markdownPath)),
@@ -676,6 +696,12 @@ func presentationInputFingerprint(markdownPath string) ([sha256.Size]byte, error
 		}
 		_, _ = fmt.Fprintf(hash, "%d:%d", info.Size(), info.ModTime().UnixNano())
 	}
+	if _, themePath, err := deckThemeCSS(source, filepath.Dir(markdownPath)); err == nil && themePath != "" {
+		_, _ = fmt.Fprintf(hash, "\x00%s\x00", themePath)
+		if info, err := os.Stat(themePath); err == nil {
+			_, _ = fmt.Fprintf(hash, "%d:%d", info.Size(), info.ModTime().UnixNano())
+		}
+	}
 	var fingerprint [sha256.Size]byte
 	copy(fingerprint[:], hash.Sum(nil))
 	return fingerprint, nil
@@ -715,7 +741,14 @@ func refreshPresentationWithOptions(markdownPath string, presentation *presentat
 	if err != nil {
 		return err
 	}
-	presentation.update(slides)
+	theme, err := loadDeckTheme(source, filepath.Dir(markdownPath))
+	if err != nil {
+		return err
+	}
+	options.themeCSS = template.CSS(theme.css) // Theme values are allowlisted in loadDeckTheme.
+	options.themePath = theme.path
+	options.themeFooter = theme.footer
+	presentation.updateDeck(slides, options.themeCSS, options.themeFooter)
 	return nil
 }
 
