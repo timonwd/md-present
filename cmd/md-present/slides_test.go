@@ -87,6 +87,48 @@ func TestSlideSegmentsExcludeDocumentFrontMatter(t *testing.T) {
 	}
 }
 
+func TestSlideFrontmatterHidesOnlyItsSlide(t *testing.T) {
+	source, err := os.ReadFile(filepath.Join("..", "..", "fixtures", "hidden-slides.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	slides, err := renderPresentationSlidesWithWarnings(source, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(slides) != 3 {
+		t.Fatalf("renderPresentationSlidesWithWarnings() returned %d slides, want 3", len(slides))
+	}
+	if slides[0].Hidden || !slides[1].Hidden || slides[2].Hidden {
+		t.Fatalf("hidden flags = %#v, want [false true false]", []bool{slides[0].Hidden, slides[1].Hidden, slides[2].Hidden})
+	}
+	for index, slide := range slides {
+		if strings.Contains(string(slide.HTML), "hidden: ") {
+			t.Errorf("slide %d rendered its frontmatter: %s", index+1, slide.HTML)
+		}
+	}
+}
+
+func TestSlideFrontmatterDoesNotInterpretFencedContent(t *testing.T) {
+	source := "```yaml\n---\nhidden: true\n---\n```\n"
+	slides := parseSlides(source)
+	if len(slides) != 1 || !strings.Contains(slides[0].source, "hidden: true") || slides[0].hidden {
+		t.Fatalf("parseSlides() = %#v, want fenced frontmatter unchanged and visible", slides)
+	}
+}
+
+func TestSlideFrontmatterCanHideTheFirstSlide(t *testing.T) {
+	source := "---\nhidden: true\n---\n# Appendix\n"
+	slides, err := renderPresentationSlidesWithWarnings([]byte(source), "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(slides) != 1 || !slides[0].Hidden || string(slides[0].HTML) != "<h1>Appendix</h1>\n" {
+		t.Fatalf("renderPresentationSlidesWithWarnings() = %#v, want a single hidden appendix slide", slides)
+	}
+}
+
 func TestRenderSlidesMarkdownAndSafety(t *testing.T) {
 	source := []byte(`# Title
 

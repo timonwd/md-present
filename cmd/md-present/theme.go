@@ -73,6 +73,9 @@ func parseDeckTheme(source []byte, deckDirectory string) ([]byte, string, error)
 		return source, "", nil
 	}
 	frontmatter := string(source[4 : 4+end])
+	if isHiddenSlideFrontMatter(frontmatter) {
+		return source, "", nil
+	}
 	body := source[4+end+len(frontmatterEnd):]
 	var themeReference string
 	for _, line := range strings.Split(frontmatter, "\n") {

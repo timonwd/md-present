@@ -97,13 +97,13 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		}
 	}
 
-	slides, err := renderSlidesWithOptions(source, filepath.Dir(path), stderr, rendering)
+	slides, err := renderPresentationSlidesWithOptions(source, filepath.Dir(path), stderr, rendering)
 	if err != nil {
 		fmt.Fprintf(stderr, "Error: render presentation: %v\n", err)
 		return 1
 	}
 
-	if err := servePresentation(path, slides, config.noOpen, rendering, stdout, stderr); err != nil {
+	if err := servePresentationSlides(path, slides, config.noOpen, rendering, stdout, stderr); err != nil {
 		fmt.Fprintf(stderr, "Error: %v\n", err)
 		return 1
 	}

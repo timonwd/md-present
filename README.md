@@ -156,6 +156,31 @@ arrows to change slides; they ask before discarding unsaved changes.
 
 When a network connection is available, md-present also checks GitHub Releases in the background. If a newer version exists, it shows an update notice in the presentation and prints the Homebrew upgrade command to stderr; the check is optional and never blocks presenting offline.
 
+### Hidden slides
+
+To keep a slide out of normal presentation navigation, place `hidden: true` in
+frontmatter immediately before that slide. The slide remains available in the
+overview, where it is labelled as hidden and can be selected for inspection.
+
+```md
+# Opening slide
+
+---
+hidden: true
+---
+# Appendix slide
+
+---
+hidden: false
+---
+# Closing slide
+```
+
+Right/left navigation, Home/End, slide clicks, and the initial URL route skip
+hidden slides. The overview still includes them so they can be reviewed without
+making them part of the normal presentation flow. Set `hidden: false` to make a
+slide explicit in generated Markdown, although visible is the default.
+
 ### HTML and columns
 
 CommonMark raw HTML is supported for trusted decks. Keep blank lines between HTML container tags and Markdown content so CommonMark parses the inner content as Markdown.

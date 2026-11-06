@@ -39,17 +39,18 @@ const (
 )
 
 type pageData struct {
-	Slides   []template.HTML
-	Revision uint64
-	Title    string
-	Editor   bool
-	ThemeCSS template.CSS
-	Footer   string
+	Slides        []presentationSlide
+	VisibleSlides int
+	Revision      uint64
+	Title         string
+	Editor        bool
+	ThemeCSS      template.CSS
+	Footer        string
 }
 
 type presentationState struct {
 	mu          sync.RWMutex
-	slides      []template.HTML
+	slides      []presentationSlide
 	themeCSS    template.CSS
 	themeFooter string
 	revision    uint64
@@ -155,6 +156,14 @@ func formatSlideNumbers(slides []int) string {
 }
 
 func newPresentationState(slides []template.HTML) *presentationState {
+	presentationSlides := make([]presentationSlide, len(slides))
+	for index, slide := range slides {
+		presentationSlides[index] = presentationSlide{HTML: slide}
+	}
+	return newPresentationStateWithSlides(presentationSlides)
+}
+
+func newPresentationStateWithSlides(slides []presentationSlide) *presentationState {
 	return &presentationState{
 		slides:      slides,
 		revision:    1,
@@ -165,10 +174,28 @@ func newPresentationState(slides []template.HTML) *presentationState {
 func (p *presentationState) snapshot() ([]template.HTML, uint64) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
+	slides := make([]template.HTML, len(p.slides))
+	for index, slide := range p.slides {
+		slides[index] = slide.HTML
+	}
+	return slides, p.revision
+}
+
+func (p *presentationState) presentationSnapshot() ([]presentationSlide, uint64) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
 	return p.slides, p.revision
 }
 
 func (p *presentationState) update(slides []template.HTML) bool {
+	presentationSlides := make([]presentationSlide, len(slides))
+	for index, slide := range slides {
+		presentationSlides[index] = presentationSlide{HTML: slide}
+	}
+	return p.updatePresentationSlides(presentationSlides)
+}
+
+func (p *presentationState) updatePresentationSlides(slides []presentationSlide) bool {
 	css, footer := p.themeSnapshot()
 	return p.updateDeck(slides, css, footer)
 }
@@ -179,7 +206,7 @@ func (p *presentationState) themeSnapshot() (template.CSS, string) {
 	return p.themeCSS, p.themeFooter
 }
 
-func (p *presentationState) updateDeck(slides []template.HTML, themeCSS template.CSS, themeFooter string) bool {
+func (p *presentationState) updateDeck(slides []presentationSlide, themeCSS template.CSS, themeFooter string) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if slices.Equal(p.slides, slides) && p.themeCSS == themeCSS && p.themeFooter == themeFooter {
@@ -196,6 +223,16 @@ func (p *presentationState) updateDeck(slides []template.HTML, themeCSS template
 		}
 	}
 	return true
+}
+
+func visibleSlideCount(slides []presentationSlide) int {
+	visible := 0
+	for _, slide := range slides {
+		if !slide.Hidden {
+			visible++
+		}
+	}
+	return visible
 }
 
 func (p *presentationState) subscribe() (<-chan uint64, uint64, func()) {
@@ -356,7 +393,7 @@ func presentationHandlerWithOptions(presentation *presentationState, tracker *ta
 			http.Error(w, "invalid overflow report", http.StatusBadRequest)
 			return
 		}
-		slides, revision := presentation.snapshot()
+		slides, revision := presentation.presentationSnapshot()
 		if report.Revision != revision {
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -426,9 +463,9 @@ func presentationHandlerWithOptions(presentation *presentationState, tracker *ta
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
-		slides, revision := presentation.snapshot()
+		slides, revision := presentation.presentationSnapshot()
 		themeCSS, footer := presentation.themeSnapshot()
-		if err := pageTemplate.Execute(w, pageData{Slides: slides, Revision: revision, Title: title, Editor: options.markdownPath != "", ThemeCSS: themeCSS, Footer: footer}); err != nil {
+		if err := pageTemplate.Execute(w, pageData{Slides: slides, VisibleSlides: visibleSlideCount(slides), Revision: revision, Title: title, Editor: options.markdownPath != "", ThemeCSS: themeCSS, Footer: footer}); err != nil {
 			http.Error(w, "render presentation", http.StatusInternalServerError)
 		}
 	})
@@ -499,7 +536,7 @@ func (e *editorSource) save(request editorSaveRequest) (editorSaveResponse, erro
 		slides, deckRevision := e.presentation.snapshot()
 		return editorSaveResponse{Revision: revision, DeckRevision: deckRevision, HTML: string(slides[request.Slide-1])}, nil
 	}
-	slides, err := renderSlidesWithOptions([]byte(candidate), filepath.Dir(e.path), nil, e.options)
+	slides, err := renderPresentationSlidesWithOptions([]byte(candidate), filepath.Dir(e.path), nil, e.options)
 	if err != nil {
 		return editorSaveResponse{}, err
 	}
@@ -531,9 +568,9 @@ func (e *editorSource) save(request editorSaveRequest) (editorSaveResponse, erro
 	if err := os.Rename(temporaryPath, e.path); err != nil {
 		return editorSaveResponse{}, err
 	}
-	e.presentation.update(slides)
+	e.presentation.updatePresentationSlides(slides)
 	_, deckRevision := e.presentation.snapshot()
-	return editorSaveResponse{Revision: sourceRevision([]byte(candidate)), DeckRevision: deckRevision, HTML: string(slides[request.Slide-1])}, nil
+	return editorSaveResponse{Revision: sourceRevision([]byte(candidate)), DeckRevision: deckRevision, HTML: string(slides[request.Slide-1].HTML)}, nil
 }
 
 func (e *editorSource) preview(request editorSaveRequest) (editorSaveResponse, error) {
@@ -552,7 +589,7 @@ func (e *editorSource) preview(request editorSaveRequest) (editorSaveResponse, e
 	}
 	segment := segments[request.Slide-1]
 	candidate := current[:segment.start] + request.Source + current[segment.stop:]
-	slides, err := renderSlidesWithOptions([]byte(candidate), filepath.Dir(e.path), nil, e.options)
+	slides, err := renderPresentationSlidesWithOptions([]byte(candidate), filepath.Dir(e.path), nil, e.options)
 	if err != nil {
 		return editorSaveResponse{}, err
 	}
@@ -560,7 +597,7 @@ func (e *editorSource) preview(request editorSaveRequest) (editorSaveResponse, e
 		return editorSaveResponse{}, errors.New("editing slide separators is not supported")
 	}
 	_, deckRevision := e.presentation.snapshot()
-	return editorSaveResponse{Revision: revision, DeckRevision: deckRevision, HTML: string(slides[request.Slide-1])}, nil
+	return editorSaveResponse{Revision: revision, DeckRevision: deckRevision, HTML: string(slides[request.Slide-1].HTML)}, nil
 }
 
 func sourceRevision(source []byte) string { return fmt.Sprintf("%x", sha256.Sum256(source)) }
@@ -568,10 +605,18 @@ func sourceRevision(source []byte) string { return fmt.Sprintf("%x", sha256.Sum2
 func sameOrigin(r *http.Request) bool { return r.Header.Get("Origin") == "http://"+r.Host }
 
 func servePresentation(markdownPath string, slides []template.HTML, noOpen bool, options renderOptions, stdout, stderr io.Writer) error {
+	presentationSlides := make([]presentationSlide, len(slides))
+	for index, slide := range slides {
+		presentationSlides[index] = presentationSlide{HTML: slide}
+	}
+	return servePresentationSlides(markdownPath, presentationSlides, noOpen, options, stdout, stderr)
+}
+
+func servePresentationSlides(markdownPath string, slides []presentationSlide, noOpen bool, options renderOptions, stdout, stderr io.Writer) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	presentation, err := startPresentation(ctx, markdownPath, slides, options, !noOpen, stdout, stderr)
+	presentation, err := startPresentationWithSlides(ctx, markdownPath, slides, options, !noOpen, stdout, stderr)
 	if err != nil {
 		return err
 	}
@@ -579,6 +624,14 @@ func servePresentation(markdownPath string, slides []template.HTML, noOpen bool,
 }
 
 func startPresentation(parent context.Context, markdownPath string, slides []template.HTML, options renderOptions, open bool, stdout, stderr io.Writer) (*runningPresentation, error) {
+	presentationSlides := make([]presentationSlide, len(slides))
+	for index, slide := range slides {
+		presentationSlides[index] = presentationSlide{HTML: slide}
+	}
+	return startPresentationWithSlides(parent, markdownPath, presentationSlides, options, open, stdout, stderr)
+}
+
+func startPresentationWithSlides(parent context.Context, markdownPath string, slides []presentationSlide, options renderOptions, open bool, stdout, stderr io.Writer) (*runningPresentation, error) {
 	listener, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
 		return nil, fmt.Errorf("start local server: %w", err)
@@ -586,7 +639,7 @@ func startPresentation(parent context.Context, markdownPath string, slides []tem
 
 	ctx, stop := context.WithCancel(parent)
 	tracker := newTabTracker(stop, tabCloseGrace)
-	presentation := newPresentationState(slides)
+	presentation := newPresentationStateWithSlides(slides)
 	presentation.themeCSS = options.themeCSS
 	presentation.themeFooter = options.themeFooter
 	updates := newUpdateState()
@@ -737,7 +790,7 @@ func refreshPresentationWithOptions(markdownPath string, presentation *presentat
 	if err != nil {
 		return err
 	}
-	slides, err := renderSlidesWithOptions(source, filepath.Dir(markdownPath), warnings, options)
+	slides, err := renderPresentationSlidesWithOptions(source, filepath.Dir(markdownPath), warnings, options)
 	if err != nil {
 		return err
 	}

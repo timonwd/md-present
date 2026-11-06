@@ -12,7 +12,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -282,6 +281,28 @@ func TestPresentationTitleUsesMarkdownFilename(t *testing.T) {
 	}
 }
 
+func TestPresentationHandlerMarksHiddenSlidesForOverview(t *testing.T) {
+	presentation := newPresentationStateWithSlides([]presentationSlide{
+		{HTML: "<h1>Opening</h1>"},
+		{HTML: "<h1>Appendix</h1>", Hidden: true},
+	})
+	handler := presentationHandler(presentation, newTabTracker(func() {}, time.Second), io.Discard)
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request.Host = "127.0.0.1:38473"
+	handler.ServeHTTP(response, request)
+
+	body := response.Body.String()
+	for _, expected := range []string{`id="slide-2"`, `data-hidden="true"`, "Hidden from presentation"} {
+		if !strings.Contains(body, expected) {
+			t.Errorf("GET / omitted hidden-slide overview marker %q", expected)
+		}
+	}
+	if !strings.Contains(body, `id="current">1</span><span class="progress__rule"></span><span>1</span>`) {
+		t.Fatal("GET / did not count only visible slides in the progress indicator")
+	}
+}
+
 func TestPresentationHandlerReportsOverflow(t *testing.T) {
 	presentation := newPresentationState([]template.HTML{"<h1>One</h1>", "<h1>Two</h1>"})
 	var diagnostics bytes.Buffer
@@ -472,7 +493,7 @@ func TestRefreshPresentationKeepsLastValidRender(t *testing.T) {
 	}
 	slides, revision := presentation.snapshot()
 	if revision != 2 || !strings.Contains(string(slides[0]), "After") {
-		t.Fatalf("updated presentation = (%q, %d)", slides, revision)
+		t.Fatalf("updated presentation = (%#v, %d)", slides, revision)
 	}
 
 	if err := os.WriteFile(path, []byte("---"), 0o600); err != nil {
@@ -483,7 +504,7 @@ func TestRefreshPresentationKeepsLastValidRender(t *testing.T) {
 	}
 	slides, revision = presentation.snapshot()
 	if revision != 2 || !strings.Contains(string(slides[0]), "After") {
-		t.Fatalf("invalid refresh replaced presentation = (%q, %d)", slides, revision)
+		t.Fatalf("invalid refresh replaced presentation = (%#v, %d)", slides, revision)
 	}
 }
 
@@ -536,8 +557,8 @@ func TestRefreshPresentationDetectsLocalImageChanges(t *testing.T) {
 		t.Fatalf("refreshPresentation() error: %v", err)
 	}
 	slides, revision := presentation.snapshot()
-	if revision != 2 || slices.Equal(slides, initial) {
-		t.Fatalf("image refresh presentation = (%q, %d)", slides, revision)
+	if revision != 2 || len(slides) != 1 || slides[0] == initial[0] {
+		t.Fatalf("image refresh presentation = (%#v, %d)", slides, revision)
 	}
 }
 

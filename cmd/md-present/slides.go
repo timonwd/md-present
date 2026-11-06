@@ -58,45 +58,172 @@ func newMarkdownRenderer(options renderOptions) markdownRenderer {
 }
 
 func splitSlides(source string) []string {
-	segments := slideSegments(source)
-	slides := make([]string, len(segments))
+	markdownSlides := parseSlides(source)
+	slides := make([]string, len(markdownSlides))
+	for index, slide := range markdownSlides {
+		slides[index] = slide.source
+	}
+	return slides
+}
+
+type markdownSlide struct {
+	source string
+	hidden bool
+}
+
+type presentationSlide struct {
+	HTML   template.HTML
+	Hidden bool
+}
+
+type markdownSlideSegment struct {
+	sourceRange
+	hidden bool
+}
+
+func parseSlides(source string) []markdownSlide {
+	segments := presentationSlideSegments(source)
+	slides := make([]markdownSlide, len(segments))
 	for index, segment := range segments {
-		slides[index] = source[segment.start:segment.stop]
+		slides[index] = markdownSlide{source: source[segment.start:segment.stop], hidden: segment.hidden}
 	}
 	return slides
 }
 
 func slideSegments(source string) []sourceRange {
-	fencedRanges := fencedCodeRanges([]byte(source))
-	start := 0
-	if strings.HasPrefix(source, "---\n") {
-		if end := strings.Index(source[4:], "\n---\n"); end >= 0 {
-			start = 4 + end + len("\n---\n")
-		}
+	segments := presentationSlideSegments(source)
+	ranges := make([]sourceRange, len(segments))
+	for index, segment := range segments {
+		ranges[index] = segment.sourceRange
 	}
+	return ranges
+}
+
+func presentationSlideSegments(source string) []markdownSlideSegment {
+	fencedRanges := fencedCodeRanges([]byte(source))
+	start := documentFrontMatterEnd(source)
 	lines := strings.SplitAfter(source[start:], "\n")
-	var segments []sourceRange
+	lineOffsets := make([]int, len(lines))
 	offset := start
+	for index, line := range lines {
+		lineOffsets[index] = offset
+		offset += len(line)
+	}
+
+	var segments []markdownSlideSegment
+	currentStart := start
+	currentHidden := false
 	appendSegment := func(stop int) {
-		body := source[start:stop]
+		body := source[currentStart:stop]
 		trimmedLeft := strings.TrimLeftFunc(body, unicode.IsSpace)
 		trimmed := strings.TrimRightFunc(trimmedLeft, unicode.IsSpace)
 		if trimmed != "" {
-			contentStart := start + len(body) - len(trimmedLeft)
-			segments = append(segments, sourceRange{start: contentStart, stop: contentStart + len(trimmed)})
+			contentStart := currentStart + len(body) - len(trimmedLeft)
+			segments = append(segments, markdownSlideSegment{
+				sourceRange: sourceRange{start: contentStart, stop: contentStart + len(trimmed)},
+				hidden:      currentHidden,
+			})
 		}
 	}
 
-	for _, line := range lines {
-		lineEnd := offset + len(line)
-		if strings.TrimSpace(line) == "---" && !overlapsRange(offset, lineEnd, fencedRanges) {
-			appendSegment(offset)
-			start = lineEnd
+	for index := 0; index < len(lines); index++ {
+		line := lines[index]
+		lineStart := lineOffsets[index]
+		lineEnd := lineStart + len(line)
+		if strings.TrimSpace(line) == "---" && !overlapsRange(lineStart, lineEnd, fencedRanges) {
+			if hidden, end, ok := slideFrontmatter(lines, lineOffsets, index, fencedRanges); ok {
+				appendSegment(lineStart)
+				currentStart = lineOffsets[end] + len(lines[end])
+				currentHidden = hidden
+				index = end
+				continue
+			}
+			appendSegment(lineStart)
+			currentStart = lineEnd
+			currentHidden = false
 		}
-		offset = lineEnd
 	}
 	appendSegment(len(source))
 	return segments
+}
+
+func documentFrontMatterEnd(source string) int {
+	lines := strings.SplitAfter(source, "\n")
+	if len(lines) < 2 || strings.TrimSpace(lines[0]) != "---" {
+		return 0
+	}
+	offset := len(lines[0])
+	themeReferenceFound := false
+	for _, line := range lines[1:] {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "---" {
+			if themeReferenceFound {
+				return offset + len(line)
+			}
+			return 0
+		}
+		if trimmed == "" {
+			offset += len(line)
+			continue
+		}
+		field, value, found := strings.Cut(trimmed, ":")
+		if !found || strings.TrimSpace(field) != "theme" || themeReferenceFound || strings.Trim(strings.TrimSpace(value), `"'`) == "" {
+			return 0
+		}
+		themeReferenceFound = true
+		offset += len(line)
+	}
+	return 0
+}
+
+func isHiddenSlideFrontMatter(frontmatter string) bool {
+	foundHidden := false
+	for _, line := range strings.Split(frontmatter, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		field, value, found := strings.Cut(line, ":")
+		if !found || strings.TrimSpace(field) != "hidden" || foundHidden {
+			return false
+		}
+		switch strings.TrimSpace(value) {
+		case "true", "false":
+			foundHidden = true
+		default:
+			return false
+		}
+	}
+	return foundHidden
+}
+
+func slideFrontmatter(lines []string, lineOffsets []int, start int, fencedRanges []sourceRange) (hidden bool, end int, ok bool) {
+	foundHidden := false
+	for index := start + 1; index < len(lines); index++ {
+		lineStart := lineOffsets[index]
+		lineEnd := lineStart + len(lines[index])
+		if overlapsRange(lineStart, lineEnd, fencedRanges) {
+			return false, 0, false
+		}
+		if strings.TrimSpace(lines[index]) == "---" {
+			return hidden, index, foundHidden
+		}
+
+		field, value, found := strings.Cut(strings.TrimSpace(lines[index]), ":")
+		if !found || strings.TrimSpace(field) != "hidden" || foundHidden {
+			return false, 0, false
+		}
+		switch strings.TrimSpace(value) {
+		case "true":
+			hidden = true
+		case "false":
+			hidden = false
+		default:
+			return false, 0, false
+		}
+		foundHidden = true
+	}
+	return false, 0, false
 }
 
 type sourceRange struct {
@@ -139,6 +266,22 @@ func renderSlidesWithWarnings(source []byte, deckDirectory string, warnings io.W
 }
 
 func renderSlidesWithOptions(source []byte, deckDirectory string, warnings io.Writer, options renderOptions) ([]template.HTML, error) {
+	presentationSlides, err := renderPresentationSlidesWithOptions(source, deckDirectory, warnings, options)
+	if err != nil {
+		return nil, err
+	}
+	rendered := make([]template.HTML, len(presentationSlides))
+	for index, slide := range presentationSlides {
+		rendered[index] = slide.HTML
+	}
+	return rendered, nil
+}
+
+func renderPresentationSlidesWithWarnings(source []byte, deckDirectory string, warnings io.Writer) ([]presentationSlide, error) {
+	return renderPresentationSlidesWithOptions(source, deckDirectory, warnings, renderOptions{})
+}
+
+func renderPresentationSlidesWithOptions(source []byte, deckDirectory string, warnings io.Writer, options renderOptions) ([]presentationSlide, error) {
 	var err error
 	source, _, err = parseDeckTheme(source, deckDirectory)
 	if err != nil {
@@ -148,15 +291,15 @@ func renderSlidesWithOptions(source []byte, deckDirectory string, warnings io.Wr
 		return nil, fmt.Errorf("raw HTML requires --allow-raw-html")
 	}
 	warnUnterminatedFencedCodeBlocks(source, warnings)
-	markdownSlides := splitSlides(string(source))
+	markdownSlides := parseSlides(string(source))
 	if len(markdownSlides) == 0 {
 		return nil, fmt.Errorf("the Markdown file contains no slide content")
 	}
 
 	renderer := newMarkdownRenderer(options)
-	rendered := make([]template.HTML, 0, len(markdownSlides))
+	rendered := make([]presentationSlide, 0, len(markdownSlides))
 	for _, slide := range markdownSlides {
-		slideSource := []byte(slide)
+		slideSource := []byte(slide.source)
 		document := renderer.parser.Parse(slideSource)
 		if err := embedLocalMedia(document, slideSource, deckDirectory, warnings); err != nil {
 			return nil, err
@@ -167,7 +310,7 @@ func renderSlidesWithOptions(source []byte, deckDirectory string, warnings io.Wr
 		}
 		// Raw HTML reaches this point only after the CLI trust gate. Markdown
 		// links retain Goldmark's dangerous-URL filtering.
-		rendered = append(rendered, template.HTML(output.String())) //nolint:gosec
+		rendered = append(rendered, presentationSlide{HTML: template.HTML(output.String()), Hidden: slide.hidden}) //nolint:gosec
 	}
 	return rendered, nil
 }
