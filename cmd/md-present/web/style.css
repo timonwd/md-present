@@ -118,13 +118,14 @@ body.is-overview { overflow: auto; }
 .editor__navigation button { width: 2.4rem; }
 .editor__slide-number { min-width: 3.8rem; color: var(--muted); font-size: 0.82rem; text-align: center; }
 .editor__actions button { width: 5.5rem; }
+.editor__corner-close { display: grid; width: 2.25rem; height: 2.25rem; padding: 0; place-items: center; font-size: 1.35rem; line-height: 1; }
 .editor__header button,
 .editor__close,
 .editor__save,
 .editor__navigation button { border: 1px solid var(--line); border-radius: 0.35rem; background: var(--stage); color: var(--ink); font: inherit; padding: 0.4rem 0.65rem; cursor: pointer; }
 .editor__close { background: var(--code); color: var(--muted); }
 .editor__save { border-color: var(--accent); background: var(--accent); color: white; }
-.editor__save:disabled { cursor: wait; opacity: 0.65; }
+.editor__save:disabled { border-color: var(--line); background: var(--code); color: var(--muted); cursor: not-allowed; opacity: 0.65; }
 .editor__source { width: 100%; min-height: 0; resize: none; border: 0; outline: 0; background: var(--stage); color: var(--ink); padding: 1rem; font: 0.9rem/1.5 "SFMono-Regular", Consolas, "Liberation Mono", monospace; tab-size: 2; }
 .editor__status { min-width: 0; margin-left: auto; padding: 0.3rem 0.55rem; border: 1px solid var(--line); border-radius: 999px; background: var(--code); color: var(--muted); font-size: 0.78rem; }
 .editor__status.is-error { color: #b42318; }

@@ -1,54 +1,43 @@
 package main
 
 import (
-	"github.com/yuin/goldmark"
-	"github.com/yuin/goldmark/ast"
-	"github.com/yuin/goldmark/renderer"
-	goldmarkhtml "github.com/yuin/goldmark/renderer/html"
-	"github.com/yuin/goldmark/util"
+	"io"
+
+	"github.com/yuin/goldmark/v2/ast"
+	"github.com/yuin/goldmark/v2/renderer"
+	goldmarkhtml "github.com/yuin/goldmark/v2/renderer/html"
 )
 
 // rawHTMLRendering preserves CommonMark raw HTML after the CLI has established
 // that the deck is trusted. It overrides only raw HTML nodes, leaving
 // Goldmark's dangerous-URL filtering in place for Markdown links and images.
-var rawHTMLRendering goldmark.Extender = &rawHTMLRenderingExtension{}
+var rawHTMLRendering goldmarkhtml.Extension = &rawHTMLRenderingExtension{}
 
 type rawHTMLRenderingExtension struct{}
 
-func (e *rawHTMLRenderingExtension) Extend(markdown goldmark.Markdown) {
-	markdown.Renderer().AddOptions(renderer.WithNodeRenderers(
-		util.Prioritized(&rawHTMLRenderer{}, 500),
-	))
+func (e *rawHTMLRenderingExtension) RendererOptions(_ *goldmarkhtml.Config) []goldmarkhtml.Option {
+	renderer := &rawHTMLRenderer{}
+	return []goldmarkhtml.Option{goldmarkhtml.WithNodeRenderers(map[ast.NodeKind]goldmarkhtml.NodeRenderer{
+		ast.KindHTMLBlock: goldmarkhtml.NodeRendererFunc(renderer.renderHTMLBlock),
+		ast.KindRawHTML:   goldmarkhtml.NodeRendererFunc(renderer.renderRawHTML),
+	})}
 }
 
 type rawHTMLRenderer struct{}
 
-func (r *rawHTMLRenderer) RegisterFuncs(registerer renderer.NodeRendererFuncRegisterer) {
-	registerer.Register(ast.KindHTMLBlock, r.renderHTMLBlock)
-	registerer.Register(ast.KindRawHTML, r.renderRawHTML)
-}
-
-func (r *rawHTMLRenderer) renderHTMLBlock(writer util.BufWriter, source []byte, node ast.Node, entering bool) (ast.WalkStatus, error) {
+func (r *rawHTMLRenderer) renderHTMLBlock(writer io.Writer, source []byte, node ast.Node, entering bool, rc renderer.Context) (ast.WalkStatus, error) {
 	block := node.(*ast.HTMLBlock)
 	if entering {
-		for i := 0; i < block.Lines().Len(); i++ {
-			line := block.Lines().At(i)
-			goldmarkhtml.DefaultWriter.SecureWrite(writer, line.Value(source))
-		}
-	} else if block.HasClosure() {
-		goldmarkhtml.DefaultWriter.SecureWrite(writer, block.ClosureLine.Value(source))
+		_, _ = block.Value.WriteTo(goldmarkhtml.ContextHTMLWriter(rc), source)
 	}
 	return ast.WalkContinue, nil
 }
 
-func (r *rawHTMLRenderer) renderRawHTML(writer util.BufWriter, source []byte, node ast.Node, entering bool) (ast.WalkStatus, error) {
+func (r *rawHTMLRenderer) renderRawHTML(writer io.Writer, source []byte, node ast.Node, entering bool, rc renderer.Context) (ast.WalkStatus, error) {
 	if !entering {
 		return ast.WalkSkipChildren, nil
 	}
 	raw := node.(*ast.RawHTML)
-	for i := 0; i < raw.Segments.Len(); i++ {
-		segment := raw.Segments.At(i)
-		goldmarkhtml.DefaultWriter.SecureWrite(writer, segment.Value(source))
-	}
+	_, _ = raw.Value.WriteTo(goldmarkhtml.ContextHTMLWriter(rc), source)
 	return ast.WalkSkipChildren, nil
 }
