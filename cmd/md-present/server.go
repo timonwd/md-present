@@ -43,13 +43,46 @@ type pageData struct {
 	VisibleSlides int
 	Revision      uint64
 	Title         string
+	Editor        bool
+	ThemeCSS      template.CSS
+	Footer        string
 }
 
 type presentationState struct {
 	mu          sync.RWMutex
 	slides      []presentationSlide
+	themeCSS    template.CSS
+	themeFooter string
 	revision    uint64
 	subscribers map[chan uint64]struct{}
+}
+
+const maxEditorSourceBytes = 1 << 20
+
+type editorSaveRequest struct {
+	Source   string `json:"source"`
+	Revision string `json:"revision"`
+	Slide    int    `json:"slide"`
+}
+
+type editorSourceResponse struct {
+	Source   string `json:"source"`
+	Revision string `json:"revision"`
+	Slide    int    `json:"slide"`
+	Slides   int    `json:"slides"`
+}
+
+type editorSaveResponse struct {
+	Revision     string `json:"revision"`
+	DeckRevision uint64 `json:"deckRevision"`
+	HTML         string `json:"html"`
+}
+
+type editorSource struct {
+	path         string
+	presentation *presentationState
+	options      renderOptions
+	mu           sync.Mutex
 }
 
 type presentationWatcher struct {
@@ -69,6 +102,15 @@ type overflowReporter struct {
 	writer   io.Writer
 	revision uint64
 	seen     map[string]struct{}
+}
+
+type runningPresentation struct {
+	url  string
+	done <-chan error
+}
+
+func (p *runningPresentation) wait() error {
+	return <-p.done
 }
 
 func newOverflowReporter(writer io.Writer) *overflowReporter {
@@ -96,7 +138,7 @@ func (r *overflowReporter) report(report overflowReport) {
 	}
 	fmt.Fprintf(
 		r.writer,
-		"md-present: warning: %s %s %s the regular 16:9 slide area at %dx%d; scroll to view all content\n",
+		"Warning: %s %s %s the regular 16:9 slide area at %dx%d; scroll to view all content.\n",
 		slideLabel,
 		formatSlideNumbers(report.Slides),
 		verb,
@@ -129,7 +171,17 @@ func newPresentationStateWithSlides(slides []presentationSlide) *presentationSta
 	}
 }
 
-func (p *presentationState) snapshot() ([]presentationSlide, uint64) {
+func (p *presentationState) snapshot() ([]template.HTML, uint64) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	slides := make([]template.HTML, len(p.slides))
+	for index, slide := range p.slides {
+		slides[index] = slide.HTML
+	}
+	return slides, p.revision
+}
+
+func (p *presentationState) presentationSnapshot() ([]presentationSlide, uint64) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.slides, p.revision
@@ -144,12 +196,25 @@ func (p *presentationState) update(slides []template.HTML) bool {
 }
 
 func (p *presentationState) updatePresentationSlides(slides []presentationSlide) bool {
+	css, footer := p.themeSnapshot()
+	return p.updateDeck(slides, css, footer)
+}
+
+func (p *presentationState) themeSnapshot() (template.CSS, string) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.themeCSS, p.themeFooter
+}
+
+func (p *presentationState) updateDeck(slides []presentationSlide, themeCSS template.CSS, themeFooter string) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if slices.Equal(p.slides, slides) {
+	if slices.Equal(p.slides, slides) && p.themeCSS == themeCSS && p.themeFooter == themeFooter {
 		return false
 	}
 	p.slides = slides
+	p.themeCSS = themeCSS
+	p.themeFooter = themeFooter
 	p.revision++
 	for subscriber := range p.subscribers {
 		select {
@@ -161,13 +226,13 @@ func (p *presentationState) updatePresentationSlides(slides []presentationSlide)
 }
 
 func visibleSlideCount(slides []presentationSlide) int {
-	count := 0
+	visible := 0
 	for _, slide := range slides {
 		if !slide.Hidden {
-			count++
+			visible++
 		}
 	}
-	return count
+	return visible
 }
 
 func (p *presentationState) subscribe() (<-chan uint64, uint64, func()) {
@@ -217,6 +282,18 @@ func (t *tabTracker) connected() func() {
 }
 
 func presentationHandler(presentation *presentationState, tracker *tabTracker, diagnostics io.Writer, titles ...string) http.Handler {
+	return presentationHandlerWithUpdate(presentation, tracker, diagnostics, nil, titles...)
+}
+
+func presentationHandlerWithUpdate(presentation *presentationState, tracker *tabTracker, diagnostics io.Writer, updates *updateState, titles ...string) http.Handler {
+	return presentationHandlerWithOptions(presentation, tracker, diagnostics, updates, renderOptions{}, titles...)
+}
+
+func presentationHandlerWithOptions(presentation *presentationState, tracker *tabTracker, diagnostics io.Writer, updates *updateState, options renderOptions, titles ...string) http.Handler {
+	if updates == nil {
+		updates = newUpdateState()
+		updates.set("")
+	}
 	title := "md-present"
 	if len(titles) > 0 && titles[0] != "" {
 		title = titles[0]
@@ -229,8 +306,74 @@ func presentationHandler(presentation *presentationState, tracker *tabTracker, d
 	overflowWarnings := newOverflowReporter(diagnostics)
 	mux := http.NewServeMux()
 	mux.Handle("GET /assets/", assetHandler)
+	if options.markdownPath != "" {
+		editor := &editorSource{path: options.markdownPath, presentation: presentation, options: options}
+		mux.HandleFunc("GET /api/source", func(w http.ResponseWriter, r *http.Request) {
+			slide, err := editorSlide(r.URL.Query().Get("slide"))
+			if err != nil {
+				http.Error(w, "invalid slide", http.StatusBadRequest)
+				return
+			}
+			source, revision, slides, err := editor.read(slide)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Cache-Control", "no-store")
+			_ = json.NewEncoder(w).Encode(editorSourceResponse{Source: source, Revision: revision, Slide: slide, Slides: slides})
+		})
+		mux.HandleFunc("PUT /api/source", func(w http.ResponseWriter, r *http.Request) {
+			if !sameOrigin(r) {
+				http.Error(w, "cross-origin request rejected", http.StatusForbidden)
+				return
+			}
+			var request editorSaveRequest
+			decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxEditorSourceBytes+1024))
+			decoder.DisallowUnknownFields()
+			if err := decoder.Decode(&request); err != nil || decoder.Decode(&struct{}{}) != io.EOF || len(request.Source) > maxEditorSourceBytes || request.Revision == "" || request.Slide < 1 {
+				http.Error(w, "invalid presentation source", http.StatusBadRequest)
+				return
+			}
+			saved, err := editor.save(request)
+			if errors.Is(err, errEditorConflict) {
+				http.Error(w, "presentation source changed outside this editor", http.StatusConflict)
+				return
+			}
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(saved)
+		})
+		mux.HandleFunc("POST /api/source/preview", func(w http.ResponseWriter, r *http.Request) {
+			if !sameOrigin(r) {
+				http.Error(w, "cross-origin request rejected", http.StatusForbidden)
+				return
+			}
+			var request editorSaveRequest
+			decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxEditorSourceBytes+1024))
+			decoder.DisallowUnknownFields()
+			if err := decoder.Decode(&request); err != nil || decoder.Decode(&struct{}{}) != io.EOF || len(request.Source) > maxEditorSourceBytes || request.Revision == "" || request.Slide < 1 {
+				http.Error(w, "invalid presentation source", http.StatusBadRequest)
+				return
+			}
+			preview, err := editor.preview(request)
+			if errors.Is(err, errEditorConflict) {
+				http.Error(w, "presentation source changed outside this editor", http.StatusConflict)
+				return
+			}
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(preview)
+		})
+	}
 	mux.HandleFunc("POST /api/overflow", func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Origin") != "http://"+r.Host {
+		if !sameOrigin(r) {
 			http.Error(w, "cross-origin request rejected", http.StatusForbidden)
 			return
 		}
@@ -250,7 +393,7 @@ func presentationHandler(presentation *presentationState, tracker *tabTracker, d
 			http.Error(w, "invalid overflow report", http.StatusBadRequest)
 			return
 		}
-		slides, revision := presentation.snapshot()
+		slides, revision := presentation.presentationSnapshot()
 		if report.Revision != revision {
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -306,16 +449,32 @@ func presentationHandler(presentation *presentationState, tracker *tabTracker, d
 			}
 		}
 	})
+	mux.HandleFunc("GET /api/update", func(w http.ResponseWriter, _ *http.Request) {
+		status, done := updates.snapshot()
+		if !done {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(status); err != nil {
+			return
+		}
+	})
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
-		slides, revision := presentation.snapshot()
-		if err := pageTemplate.Execute(w, pageData{Slides: slides, VisibleSlides: visibleSlideCount(slides), Revision: revision, Title: title}); err != nil {
+		slides, revision := presentation.presentationSnapshot()
+		themeCSS, footer := presentation.themeSnapshot()
+		if err := pageTemplate.Execute(w, pageData{Slides: slides, VisibleSlides: visibleSlideCount(slides), Revision: revision, Title: title, Editor: options.markdownPath != "", ThemeCSS: themeCSS, Footer: footer}); err != nil {
 			http.Error(w, "render presentation", http.StatusInternalServerError)
 		}
 	})
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !allowedPresentationHost(r.Host) {
+			http.Error(w, "invalid Host header", http.StatusForbidden)
+			return
+		}
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.Header().Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data: https: http:; media-src 'self' data: https: http:; style-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
@@ -323,26 +482,169 @@ func presentationHandler(presentation *presentationState, tracker *tabTracker, d
 	})
 }
 
-func servePresentation(markdownPath string, slides []template.HTML, noOpen bool, stdout, stderr io.Writer) error {
+var errEditorConflict = errors.New("presentation source changed")
+
+func editorSlide(value string) (int, error) {
+	slide, err := strconv.Atoi(value)
+	if err != nil || slide < 1 {
+		return 0, errors.New("invalid slide")
+	}
+	return slide, nil
+}
+
+func (e *editorSource) read(slide int) (string, string, int, error) {
+	source, revision, err := e.readDeck()
+	if err != nil {
+		return "", "", 0, err
+	}
+	segments := slideSegments(source)
+	if slide > len(segments) {
+		return "", "", 0, fmt.Errorf("slide %d does not exist", slide)
+	}
+	segment := segments[slide-1]
+	return source[segment.start:segment.stop], revision, len(segments), nil
+}
+
+func (e *editorSource) readDeck() (string, string, error) {
+	source, err := os.ReadFile(e.path)
+	if err != nil || len(source) > maxEditorSourceBytes {
+		if err == nil {
+			err = fmt.Errorf("presentation source exceeds %d bytes", maxEditorSourceBytes)
+		}
+		return "", "", err
+	}
+	return string(source), sourceRevision(source), nil
+}
+
+func (e *editorSource) save(request editorSaveRequest) (editorSaveResponse, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	current, revision, err := e.readDeck()
+	if err != nil {
+		return editorSaveResponse{}, err
+	}
+	if revision != request.Revision {
+		return editorSaveResponse{}, errEditorConflict
+	}
+	segments := slideSegments(current)
+	if request.Slide > len(segments) {
+		return editorSaveResponse{}, fmt.Errorf("slide %d does not exist", request.Slide)
+	}
+	segment := segments[request.Slide-1]
+	candidate := current[:segment.start] + request.Source + current[segment.stop:]
+	if candidate == current {
+		slides, deckRevision := e.presentation.snapshot()
+		return editorSaveResponse{Revision: revision, DeckRevision: deckRevision, HTML: string(slides[request.Slide-1])}, nil
+	}
+	slides, err := renderPresentationSlidesWithOptions([]byte(candidate), filepath.Dir(e.path), nil, e.options)
+	if err != nil {
+		return editorSaveResponse{}, err
+	}
+	if len(slides) != len(segments) {
+		return editorSaveResponse{}, errors.New("editing slide separators is not supported")
+	}
+	info, err := os.Stat(e.path)
+	if err != nil {
+		return editorSaveResponse{}, err
+	}
+	temporary, err := os.CreateTemp(filepath.Dir(e.path), ".md-present-*")
+	if err != nil {
+		return editorSaveResponse{}, err
+	}
+	temporaryPath := temporary.Name()
+	defer os.Remove(temporaryPath)
+	if err := temporary.Chmod(info.Mode().Perm()); err == nil {
+		_, err = temporary.WriteString(candidate)
+	}
+	if err == nil {
+		err = temporary.Sync()
+	}
+	if closeErr := temporary.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		return editorSaveResponse{}, err
+	}
+	if err := os.Rename(temporaryPath, e.path); err != nil {
+		return editorSaveResponse{}, err
+	}
+	e.presentation.updatePresentationSlides(slides)
+	_, deckRevision := e.presentation.snapshot()
+	return editorSaveResponse{Revision: sourceRevision([]byte(candidate)), DeckRevision: deckRevision, HTML: string(slides[request.Slide-1].HTML)}, nil
+}
+
+func (e *editorSource) preview(request editorSaveRequest) (editorSaveResponse, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	current, revision, err := e.readDeck()
+	if err != nil {
+		return editorSaveResponse{}, err
+	}
+	if revision != request.Revision {
+		return editorSaveResponse{}, errEditorConflict
+	}
+	segments := slideSegments(current)
+	if request.Slide > len(segments) {
+		return editorSaveResponse{}, fmt.Errorf("slide %d does not exist", request.Slide)
+	}
+	segment := segments[request.Slide-1]
+	candidate := current[:segment.start] + request.Source + current[segment.stop:]
+	slides, err := renderPresentationSlidesWithOptions([]byte(candidate), filepath.Dir(e.path), nil, e.options)
+	if err != nil {
+		return editorSaveResponse{}, err
+	}
+	if len(slides) != len(segments) {
+		return editorSaveResponse{}, errors.New("editing slide separators is not supported")
+	}
+	_, deckRevision := e.presentation.snapshot()
+	return editorSaveResponse{Revision: revision, DeckRevision: deckRevision, HTML: string(slides[request.Slide-1].HTML)}, nil
+}
+
+func sourceRevision(source []byte) string { return fmt.Sprintf("%x", sha256.Sum256(source)) }
+
+func sameOrigin(r *http.Request) bool { return r.Header.Get("Origin") == "http://"+r.Host }
+
+func servePresentation(markdownPath string, slides []template.HTML, noOpen bool, options renderOptions, stdout, stderr io.Writer) error {
 	presentationSlides := make([]presentationSlide, len(slides))
 	for index, slide := range slides {
 		presentationSlides[index] = presentationSlide{HTML: slide}
 	}
-	return servePresentationSlides(markdownPath, presentationSlides, noOpen, stdout, stderr)
+	return servePresentationSlides(markdownPath, presentationSlides, noOpen, options, stdout, stderr)
 }
 
-func servePresentationSlides(markdownPath string, slides []presentationSlide, noOpen bool, stdout, stderr io.Writer) error {
-	listener, err := net.Listen("tcp4", "127.0.0.1:0")
-	if err != nil {
-		return fmt.Errorf("start local server: %w", err)
-	}
-
+func servePresentationSlides(markdownPath string, slides []presentationSlide, noOpen bool, options renderOptions, stdout, stderr io.Writer) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	presentation, err := startPresentationWithSlides(ctx, markdownPath, slides, options, !noOpen, stdout, stderr)
+	if err != nil {
+		return err
+	}
+	return presentation.wait()
+}
+
+func startPresentation(parent context.Context, markdownPath string, slides []template.HTML, options renderOptions, open bool, stdout, stderr io.Writer) (*runningPresentation, error) {
+	presentationSlides := make([]presentationSlide, len(slides))
+	for index, slide := range slides {
+		presentationSlides[index] = presentationSlide{HTML: slide}
+	}
+	return startPresentationWithSlides(parent, markdownPath, presentationSlides, options, open, stdout, stderr)
+}
+
+func startPresentationWithSlides(parent context.Context, markdownPath string, slides []presentationSlide, options renderOptions, open bool, stdout, stderr io.Writer) (*runningPresentation, error) {
+	listener, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		return nil, fmt.Errorf("start local server: %w", err)
+	}
+
+	ctx, stop := context.WithCancel(parent)
 	tracker := newTabTracker(stop, tabCloseGrace)
 	presentation := newPresentationStateWithSlides(slides)
+	presentation.themeCSS = options.themeCSS
+	presentation.themeFooter = options.themeFooter
+	updates := newUpdateState()
 	server := &http.Server{
-		Handler:           presentationHandler(presentation, tracker, stderr, presentationTitle(markdownPath)),
+		Handler:           presentationHandlerWithOptions(presentation, tracker, stderr, updates, withMarkdownPath(options, markdownPath), presentationTitle(markdownPath)),
 		BaseContext:       func(net.Listener) context.Context { return ctx },
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       30 * time.Second,
@@ -351,33 +653,62 @@ func servePresentationSlides(markdownPath string, slides []presentationSlide, no
 	go func() {
 		serverErrors <- server.Serve(listener)
 	}()
-	go watchPresentation(ctx, newPresentationWatcher(markdownPath), presentation, liveReloadPoll, stderr)
+	go watchPresentation(ctx, newPresentationWatcher(markdownPath), presentation, liveReloadPoll, options, stderr)
+	go func() {
+		checkContext, cancel := context.WithTimeout(ctx, 3*time.Second)
+		defer cancel()
+		availableVersion, err := checkForUpdate(checkContext, http.DefaultClient, version)
+		if err == nil && availableVersion != "" {
+			fmt.Fprintf(stderr, "Update available: %s. Run brew upgrade --cask md-present to update.\n", availableVersion)
+		}
+		updates.set(availableVersion)
+	}()
 
 	url := "http://" + listener.Addr().String() + "/"
-	fmt.Fprintln(stdout, url)
-	if !noOpen {
+	if stdout != nil {
+		fmt.Fprintln(stdout, url)
+	}
+	if open {
 		if err := openBrowser(url); err != nil {
 			stop()
 			shutdownServer(server)
 			<-serverErrors
-			return fmt.Errorf("open browser: %w", err)
+			return nil, fmt.Errorf("open browser: %w", err)
 		}
 	}
 
-	select {
-	case err := <-serverErrors:
-		if !errors.Is(err, http.ErrServerClosed) {
-			return fmt.Errorf("serve presentation: %w", err)
+	done := make(chan error, 1)
+	go func() {
+		defer stop()
+		select {
+		case err := <-serverErrors:
+			if !errors.Is(err, http.ErrServerClosed) {
+				done <- fmt.Errorf("serve presentation: %w", err)
+				return
+			}
+			done <- nil
+		case <-ctx.Done():
+			shutdownServer(server)
+			err := <-serverErrors
+			if err != nil && !errors.Is(err, http.ErrServerClosed) {
+				done <- fmt.Errorf("serve presentation: %w", err)
+				return
+			}
+			done <- nil
 		}
-		return nil
-	case <-ctx.Done():
-		shutdownServer(server)
-		err := <-serverErrors
-		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			return fmt.Errorf("serve presentation: %w", err)
-		}
-		return nil
-	}
+	}()
+
+	return &runningPresentation{url: url, done: done}, nil
+}
+
+func withMarkdownPath(options renderOptions, path string) renderOptions {
+	options.markdownPath = path
+	return options
+}
+
+func allowedPresentationHost(value string) bool {
+	host, _, err := net.SplitHostPort(value)
+	return err == nil && (host == "127.0.0.1" || host == "localhost")
 }
 
 func presentationTitle(markdownPath string) string {
@@ -418,19 +749,27 @@ func presentationInputFingerprint(markdownPath string) ([sha256.Size]byte, error
 		}
 		_, _ = fmt.Fprintf(hash, "%d:%d", info.Size(), info.ModTime().UnixNano())
 	}
+	if _, themePath, err := deckThemeCSS(source, filepath.Dir(markdownPath)); err == nil && themePath != "" {
+		_, _ = fmt.Fprintf(hash, "\x00%s\x00", themePath)
+		if info, err := os.Stat(themePath); err == nil {
+			_, _ = fmt.Fprintf(hash, "%d:%d", info.Size(), info.ModTime().UnixNano())
+		}
+	}
 	var fingerprint [sha256.Size]byte
 	copy(fingerprint[:], hash.Sum(nil))
 	return fingerprint, nil
 }
 
-func watchPresentation(ctx context.Context, watcher *presentationWatcher, presentation *presentationState, interval time.Duration, stderr io.Writer) {
+func watchPresentation(ctx context.Context, watcher *presentationWatcher, presentation *presentationState, interval time.Duration, options renderOptions, stderr io.Writer) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
 			if watcher.changed() {
-				_ = refreshPresentationWithWarnings(watcher.markdownPath, presentation, stderr)
+				if err := refreshPresentationWithOptions(watcher.markdownPath, presentation, stderr, options); err != nil {
+					fmt.Fprintf(stderr, "Error: refresh presentation: %v\n", err)
+				}
 			}
 		case <-ctx.Done():
 			return
@@ -439,19 +778,30 @@ func watchPresentation(ctx context.Context, watcher *presentationWatcher, presen
 }
 
 func refreshPresentation(markdownPath string, presentation *presentationState) error {
-	return refreshPresentationWithWarnings(markdownPath, presentation, nil)
+	return refreshPresentationWithOptions(markdownPath, presentation, nil, renderOptions{})
 }
 
 func refreshPresentationWithWarnings(markdownPath string, presentation *presentationState, warnings io.Writer) error {
+	return refreshPresentationWithOptions(markdownPath, presentation, warnings, renderOptions{})
+}
+
+func refreshPresentationWithOptions(markdownPath string, presentation *presentationState, warnings io.Writer, options renderOptions) error {
 	source, err := os.ReadFile(markdownPath)
 	if err != nil {
 		return err
 	}
-	slides, err := renderPresentationSlidesWithWarnings(source, filepath.Dir(markdownPath), warnings)
+	slides, err := renderPresentationSlidesWithOptions(source, filepath.Dir(markdownPath), warnings, options)
 	if err != nil {
 		return err
 	}
-	presentation.updatePresentationSlides(slides)
+	theme, err := loadDeckTheme(source, filepath.Dir(markdownPath))
+	if err != nil {
+		return err
+	}
+	options.themeCSS = template.CSS(theme.css) // Theme values are allowlisted in loadDeckTheme.
+	options.themePath = theme.path
+	options.themeFooter = theme.footer
+	presentation.updateDeck(slides, options.themeCSS, options.themeFooter)
 	return nil
 }
 

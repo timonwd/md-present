@@ -12,24 +12,49 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode"
 
-	"github.com/yuin/goldmark"
-	"github.com/yuin/goldmark/ast"
-	"github.com/yuin/goldmark/extension"
-	"github.com/yuin/goldmark/text"
+	"github.com/yuin/goldmark/v2/ast"
+	"github.com/yuin/goldmark/v2/extension"
+	"github.com/yuin/goldmark/v2/parser"
+	goldmarkhtml "github.com/yuin/goldmark/v2/renderer/html"
+	"github.com/yuin/goldmark/v2/text"
 )
 
-func newMarkdownRenderer() goldmark.Markdown {
-	return goldmark.New(
-		goldmark.WithExtensions(
-			extension.Linkify,
-			extension.NewTable(extension.WithTableCellAlignMethod(extension.TableCellAlignAttribute)),
-			extension.Strikethrough,
-			extension.TaskList,
-			syntaxHighlighting,
-			videoRendering,
-		),
-	)
+type renderOptions struct {
+	allowRawHTML bool
+	markdownPath string
+	themeCSS     template.CSS
+	themePath    string
+	themeFooter  string
+}
+
+type markdownRenderer struct {
+	parser   parser.Parser
+	renderer goldmarkhtml.Renderer
+}
+
+func newMarkdownRenderer(options renderOptions) markdownRenderer {
+	parserExtensions := []parser.Extension{
+		extension.NewLinkifyParser(),
+		extension.NewTableParser(),
+		extension.NewStrikethroughParser(),
+		extension.NewTaskListItemParser(),
+	}
+	rendererExtensions := []goldmarkhtml.Extension{
+		extension.NewTableHTMLRenderer(extension.WithTableCellAlignMethod(extension.TableCellAlignAttribute)),
+		extension.NewStrikethroughHTMLRenderer(),
+		extension.NewTaskListItemHTMLRenderer(),
+		syntaxHighlighting,
+		videoRendering,
+	}
+	if options.allowRawHTML {
+		rendererExtensions = append(rendererExtensions, rawHTMLRendering)
+	}
+	return markdownRenderer{
+		parser:   parser.New(parser.WithExtensions(parserExtensions...)),
+		renderer: goldmarkhtml.New(goldmarkhtml.WithExtensions(rendererExtensions...)),
+	}
 }
 
 func splitSlides(source string) []string {
@@ -51,27 +76,54 @@ type presentationSlide struct {
 	Hidden bool
 }
 
+type markdownSlideSegment struct {
+	sourceRange
+	hidden bool
+}
+
 func parseSlides(source string) []markdownSlide {
-	normalized := strings.ReplaceAll(source, "\r\n", "\n")
-	fencedRanges := fencedCodeRanges([]byte(normalized))
-	lines := strings.Split(normalized, "\n")
+	segments := presentationSlideSegments(source)
+	slides := make([]markdownSlide, len(segments))
+	for index, segment := range segments {
+		slides[index] = markdownSlide{source: source[segment.start:segment.stop], hidden: segment.hidden}
+	}
+	return slides
+}
+
+func slideSegments(source string) []sourceRange {
+	segments := presentationSlideSegments(source)
+	ranges := make([]sourceRange, len(segments))
+	for index, segment := range segments {
+		ranges[index] = segment.sourceRange
+	}
+	return ranges
+}
+
+func presentationSlideSegments(source string) []markdownSlideSegment {
+	fencedRanges := fencedCodeRanges([]byte(source))
+	start := documentFrontMatterEnd(source)
+	lines := strings.SplitAfter(source[start:], "\n")
 	lineOffsets := make([]int, len(lines))
-	offset := 0
+	offset := start
 	for index, line := range lines {
 		lineOffsets[index] = offset
-		offset += len(line) + 1
+		offset += len(line)
 	}
 
-	var slides []markdownSlide
-	var current []string
+	var segments []markdownSlideSegment
+	currentStart := start
 	currentHidden := false
-
-	appendSlide := func() {
-		body := strings.TrimSpace(strings.Join(current, "\n"))
-		if body != "" {
-			slides = append(slides, markdownSlide{source: body, hidden: currentHidden})
+	appendSegment := func(stop int) {
+		body := source[currentStart:stop]
+		trimmedLeft := strings.TrimLeftFunc(body, unicode.IsSpace)
+		trimmed := strings.TrimRightFunc(trimmedLeft, unicode.IsSpace)
+		if trimmed != "" {
+			contentStart := currentStart + len(body) - len(trimmedLeft)
+			segments = append(segments, markdownSlideSegment{
+				sourceRange: sourceRange{start: contentStart, stop: contentStart + len(trimmed)},
+				hidden:      currentHidden,
+			})
 		}
-		current = nil
 	}
 
 	for index := 0; index < len(lines); index++ {
@@ -80,24 +132,71 @@ func parseSlides(source string) []markdownSlide {
 		lineEnd := lineStart + len(line)
 		if strings.TrimSpace(line) == "---" && !overlapsRange(lineStart, lineEnd, fencedRanges) {
 			if hidden, end, ok := slideFrontmatter(lines, lineOffsets, index, fencedRanges); ok {
-				appendSlide()
+				appendSegment(lineStart)
+				currentStart = lineOffsets[end] + len(lines[end])
 				currentHidden = hidden
 				index = end
 				continue
 			}
-			appendSlide()
+			appendSegment(lineStart)
+			currentStart = lineEnd
 			currentHidden = false
-		} else {
-			current = append(current, line)
 		}
 	}
-	appendSlide()
-	return slides
+	appendSegment(len(source))
+	return segments
 }
 
-// slideFrontmatter recognises the deliberately small per-slide frontmatter
-// format. Keeping this parser narrow means Markdown remains the authority for
-// all slide content and avoids treating ordinary horizontal rules as metadata.
+func documentFrontMatterEnd(source string) int {
+	lines := strings.SplitAfter(source, "\n")
+	if len(lines) < 2 || strings.TrimSpace(lines[0]) != "---" {
+		return 0
+	}
+	offset := len(lines[0])
+	themeReferenceFound := false
+	for _, line := range lines[1:] {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "---" {
+			if themeReferenceFound {
+				return offset + len(line)
+			}
+			return 0
+		}
+		if trimmed == "" {
+			offset += len(line)
+			continue
+		}
+		field, value, found := strings.Cut(trimmed, ":")
+		if !found || strings.TrimSpace(field) != "theme" || themeReferenceFound || strings.Trim(strings.TrimSpace(value), `"'`) == "" {
+			return 0
+		}
+		themeReferenceFound = true
+		offset += len(line)
+	}
+	return 0
+}
+
+func isHiddenSlideFrontMatter(frontmatter string) bool {
+	foundHidden := false
+	for _, line := range strings.Split(frontmatter, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		field, value, found := strings.Cut(line, ":")
+		if !found || strings.TrimSpace(field) != "hidden" || foundHidden {
+			return false
+		}
+		switch strings.TrimSpace(value) {
+		case "true", "false":
+			foundHidden = true
+		default:
+			return false
+		}
+	}
+	return foundHidden
+}
+
 func slideFrontmatter(lines []string, lineOffsets []int, start int, fencedRanges []sourceRange) (hidden bool, end int, ok bool) {
 	foundHidden := false
 	for index := start + 1; index < len(lines); index++ {
@@ -133,16 +232,15 @@ type sourceRange struct {
 }
 
 func fencedCodeRanges(source []byte) []sourceRange {
-	markdown := newMarkdownRenderer()
-	document := markdown.Parser().Parse(text.NewReader(source))
+	markdown := newMarkdownRenderer(renderOptions{})
+	document := markdown.parser.Parse(source)
 	var ranges []sourceRange
 	_ = ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
-		if !entering || node.Kind() != ast.KindFencedCodeBlock {
+		block, ok := node.(*ast.CodeBlock)
+		if !entering || !ok || block.CodeBlockKind != ast.CodeBlockKindFenced {
 			return ast.WalkContinue, nil
 		}
-		lines := node.Lines()
-		for i := 0; i < lines.Len(); i++ {
-			segment := lines.At(i)
+		for _, segment := range block.Value.Segments() {
 			ranges = append(ranges, sourceRange{start: segment.Start, stop: segment.Stop})
 		}
 		return ast.WalkContinue, nil
@@ -160,11 +258,15 @@ func overlapsRange(start, stop int, ranges []sourceRange) bool {
 }
 
 func renderSlides(source []byte, deckDirectory string) ([]template.HTML, error) {
-	return renderSlidesWithWarnings(source, deckDirectory, nil)
+	return renderSlidesWithOptions(source, deckDirectory, nil, renderOptions{})
 }
 
 func renderSlidesWithWarnings(source []byte, deckDirectory string, warnings io.Writer) ([]template.HTML, error) {
-	presentationSlides, err := renderPresentationSlidesWithWarnings(source, deckDirectory, warnings)
+	return renderSlidesWithOptions(source, deckDirectory, warnings, renderOptions{})
+}
+
+func renderSlidesWithOptions(source []byte, deckDirectory string, warnings io.Writer, options renderOptions) ([]template.HTML, error) {
+	presentationSlides, err := renderPresentationSlidesWithOptions(source, deckDirectory, warnings, options)
 	if err != nil {
 		return nil, err
 	}
@@ -176,25 +278,38 @@ func renderSlidesWithWarnings(source []byte, deckDirectory string, warnings io.W
 }
 
 func renderPresentationSlidesWithWarnings(source []byte, deckDirectory string, warnings io.Writer) ([]presentationSlide, error) {
+	return renderPresentationSlidesWithOptions(source, deckDirectory, warnings, renderOptions{})
+}
+
+func renderPresentationSlidesWithOptions(source []byte, deckDirectory string, warnings io.Writer, options renderOptions) ([]presentationSlide, error) {
+	var err error
+	source, _, err = parseDeckTheme(source, deckDirectory)
+	if err != nil {
+		return nil, err
+	}
+	if rawHTMLPresent(source) && !options.allowRawHTML {
+		return nil, fmt.Errorf("raw HTML requires --allow-raw-html")
+	}
 	warnUnterminatedFencedCodeBlocks(source, warnings)
 	markdownSlides := parseSlides(string(source))
 	if len(markdownSlides) == 0 {
 		return nil, fmt.Errorf("the Markdown file contains no slide content")
 	}
 
-	renderer := newMarkdownRenderer()
+	renderer := newMarkdownRenderer(options)
 	rendered := make([]presentationSlide, 0, len(markdownSlides))
 	for _, slide := range markdownSlides {
 		slideSource := []byte(slide.source)
-		document := renderer.Parser().Parse(text.NewReader(slideSource))
-		if err := embedLocalMedia(document, deckDirectory, warnings); err != nil {
+		document := renderer.parser.Parse(slideSource)
+		if err := embedLocalMedia(document, slideSource, deckDirectory, warnings); err != nil {
 			return nil, err
 		}
 		var output bytes.Buffer
-		if err := renderer.Renderer().Render(&output, slideSource, document); err != nil {
+		if err := renderer.renderer.Render(&output, slideSource, document); err != nil {
 			return nil, err
 		}
-		// Goldmark's safe renderer omits raw HTML and unsafe link schemes by default.
+		// Raw HTML reaches this point only after the CLI trust gate. Markdown
+		// links retain Goldmark's dangerous-URL filtering.
 		rendered = append(rendered, presentationSlide{HTML: template.HTML(output.String()), Hidden: slide.hidden}) //nolint:gosec
 	}
 	return rendered, nil
@@ -205,23 +320,24 @@ func warnUnterminatedFencedCodeBlocks(source []byte, warnings io.Writer) {
 		return
 	}
 
-	markdown := newMarkdownRenderer()
-	document := markdown.Parser().Parse(text.NewReader(source))
+	markdown := newMarkdownRenderer(renderOptions{})
+	document := markdown.parser.Parse(source)
 	_ = ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
-		if !entering || node.Kind() != ast.KindFencedCodeBlock {
+		block, ok := node.(*ast.CodeBlock)
+		if !entering || !ok || block.CodeBlockKind != ast.CodeBlockKindFenced {
 			return ast.WalkContinue, nil
 		}
-		lines := node.Lines()
-		if lines.Len() == 0 || lines.At(lines.Len()-1).Stop != len(source) {
+		lines := block.Value.Segments()
+		if len(lines) == 0 || lines[len(lines)-1].Stop != len(source) {
 			return ast.WalkContinue, nil
 		}
-		fmt.Fprintln(warnings, "md-present: warning: unterminated fenced code block continues to the end of the document")
+		fmt.Fprintln(warnings, "Warning: unterminated fenced code block continues to the end of the document.")
 		return ast.WalkContinue, nil
 	})
 }
 
 func externalMediaReferences(source []byte, deckDirectory string) []string {
-	document := newMarkdownRenderer().Parser().Parse(text.NewReader(source))
+	document := newMarkdownRenderer(renderOptions{}).parser.Parse(source)
 	seen := make(map[string]struct{})
 	var references []string
 	_ = ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
@@ -229,7 +345,7 @@ func externalMediaReferences(source []byte, deckDirectory string) []string {
 		if !entering || !ok {
 			return ast.WalkContinue, nil
 		}
-		destination := string(image.Destination)
+		destination := image.Destination.Value(source)
 		if !isExternalMediaDestination(destination, deckDirectory) {
 			return ast.WalkContinue, nil
 		}
@@ -244,7 +360,7 @@ func externalMediaReferences(source []byte, deckDirectory string) []string {
 }
 
 func localMediaPaths(source []byte, deckDirectory string) []string {
-	document := newMarkdownRenderer().Parser().Parse(text.NewReader(source))
+	document := newMarkdownRenderer(renderOptions{}).parser.Parse(source)
 	seen := make(map[string]struct{})
 	var paths []string
 	_ = ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
@@ -252,7 +368,7 @@ func localMediaPaths(source []byte, deckDirectory string) []string {
 		if !entering || !ok {
 			return ast.WalkContinue, nil
 		}
-		path, ok := localMediaPath(string(image.Destination), deckDirectory)
+		path, ok := localMediaPath(image.Destination.Value(source), deckDirectory)
 		if !ok {
 			return ast.WalkContinue, nil
 		}
@@ -264,6 +380,19 @@ func localMediaPaths(source []byte, deckDirectory string) []string {
 		return ast.WalkContinue, nil
 	})
 	return paths
+}
+
+func rawHTMLPresent(source []byte) bool {
+	document := newMarkdownRenderer(renderOptions{}).parser.Parse(source)
+	found := false
+	_ = ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
+		if entering && (node.Kind() == ast.KindHTMLBlock || node.Kind() == ast.KindRawHTML) {
+			found = true
+			return ast.WalkStop, nil
+		}
+		return ast.WalkContinue, nil
+	})
+	return found
 }
 
 func localMediaPath(destination, deckDirectory string) (string, bool) {
@@ -313,13 +442,13 @@ func pathIsOutsideDirectory(path, directory string) bool {
 	return err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator))
 }
 
-func embedLocalMedia(document ast.Node, deckDirectory string, warnings io.Writer) error {
+func embedLocalMedia(document ast.Node, source []byte, deckDirectory string, warnings io.Writer) error {
 	return ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
 		image, ok := node.(*ast.Image)
 		if !entering || !ok {
 			return ast.WalkContinue, nil
 		}
-		destination := string(image.Destination)
+		destination := image.Destination.Value(source)
 		parsed, err := url.Parse(destination)
 		if err != nil {
 			return ast.WalkContinue, nil
@@ -350,10 +479,10 @@ func embedLocalMedia(document ast.Node, deckDirectory string, warnings io.Writer
 			// to retry this request itself.
 			parent := image.Parent()
 			if parent != nil {
-				parent.RemoveChild(parent, image)
+				parent.RemoveChild(image)
 			}
 			if warnings != nil {
-				fmt.Fprintf(warnings, "md-present: warning: skip local media %q: %v\n", destination, err)
+				fmt.Fprintf(warnings, "Warning: skipped local media %q: %v\n", destination, err)
 			}
 			return ast.WalkContinue, nil
 		}
@@ -361,9 +490,9 @@ func embedLocalMedia(document ast.Node, deckDirectory string, warnings io.Writer
 		if contentType == "" {
 			contentType = http.DetectContentType(data)
 		}
-		image.Destination = []byte("data:" + contentType + ";base64," + base64.StdEncoding.EncodeToString(data))
+		image.Destination = text.NewSingleLineValueFromString("data:"+contentType+";base64,"+base64.StdEncoding.EncodeToString(data), text.IdentityDecoder)
 		if strings.HasPrefix(contentType, "video/") {
-			image.SetAttributeString("md-present-embedded-video", true)
+			image.SetAttribute("md-present-embedded-video", text.NewMultiLineValue("true", text.IdentityDecoder))
 		}
 		return ast.WalkContinue, nil
 	})

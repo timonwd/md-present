@@ -9,10 +9,12 @@ md-present is built to be agent-first. Agents already use Markdown for almost ev
 ## Features
 
 - GitHub-Flavored Markdown, syntax highlighting, and Mermaid diagrams
+- Trusted CommonMark raw HTML with built-in column layouts
 - Local images and videos embedded in the browser output, with remote HTTP(S) media loaded on demand
 - Light and dark mode
 - Slide overview for quickly navigating longer decks
 - Fullscreen viewing and presenting
+- Optional local MCP server for clients that can call HTTP tools but cannot run the CLI
 
 ## Install
 
@@ -40,6 +42,26 @@ For Claude Code, run the equivalent commands inside a session:
 ```
 
 Tools that support direct skill imports can download the canonical [`SKILL.md`](plugins/md-present/skills/md-present/SKILL.md).
+
+### Local MCP server
+
+Install an always-running per-user MCP server when an agent can reach localhost and the same filesystem but cannot execute `md-present` itself:
+
+```sh
+md-present mcp install
+```
+
+The command installs and starts a macOS LaunchAgent, then prints its Streamable HTTP endpoint. The default is `http://127.0.0.1:38473/mcp`; use `--port <port>` during installation when the default conflicts with another local service. Configure that URL in the MCP client. Homebrew upgrades restart an installed MCP LaunchAgent, so it runs the updated binary.
+
+The server exposes `present_file`. Pass an absolute Markdown file path; its containing directory becomes the root for relative images and videos. The tool opens the presentation in the browser and returns its loopback URL. Raw HTML and external media use the same explicit trust boundaries as the CLI: a first call completes with a structured MCP tool error, `approval_required` is `true`, `raw_html` identifies HTML requiring approval, and `external_media` lists blocked remote or outside-directory references. No browser opens. The caller must show the reported content to the user and retry with `allow_raw_html: true` or `allow_external_media: true` only after the corresponding approval.
+
+Remove and stop the service with:
+
+```sh
+md-present mcp uninstall
+```
+
+The MCP endpoint binds only to IPv4 loopback and rejects non-loopback Host and Origin headers. It does not authenticate requests because it is intended for MCP clients that cannot configure authorization headers. Any process running locally as the user can therefore call it; do not expose or proxy the endpoint beyond localhost. Diagnostic output is written to `~/Library/Logs/md-present-mcp.log`.
 
 ## Ideal workflow
 
@@ -71,9 +93,68 @@ Hello, world.
 ```
 
 The structured view opens in your browser and reloads when the Markdown file or local media changes.
-Before a deck with remote media or local media outside its folder opens, md-present asks whether you trust it; use `--allow-external-media` to opt in without the prompt.
+
+### Themes
+
+Decks can share a small, safe theme file. Reference it in front matter at the very start of each Markdown document:
+
+```md
+---
+theme: ../shared/acme-theme
+---
+
+# Quarterly review
+```
+
+The `.json` extension is optional; the shorter `theme: acme-theme` form is recommended. md-present first resolves the name relative to the deck, then—when it is a bare name such as `acme-theme`—also looks in `~/.md-present/themes/acme-theme.json`. This lets you install an organization theme once and select it from any document with `theme: acme-theme`.
+
+The referenced JSON file contains only visual tokens; it cannot add CSS, HTML, or JavaScript. Reuse the same file from any number of decks. All fields are optional, so omitted values retain md-present's default appearance:
+
+```json
+{
+  "colors": {"canvas": "#f4f1ea", "stage": "#fffaf0", "ink": "#202020", "accent": "#a03d2f"},
+  "darkColors": {"canvas": "#15110f", "stage": "#231b17", "ink": "#fff7ed", "accent": "#ffb4a8"},
+  "fontFamily": "Avenir Next, Arial, sans-serif",
+  "headingFontFamily": "Avenir Next Condensed, Arial, sans-serif",
+  "headingWeight": "semibold",
+  "headingLetterSpacing": "-0.04em",
+  "headingAccent": "#a03d2f",
+  "stageGutter": "2rem",
+  "contentGutter": "2.5rem",
+  "radius": "0.5rem",
+  "shadow": "subtle",
+  "footer": "Acme · Internal"
+}
+```
+
+`colors`, `darkColors`, and optional `printColors` accept the tokens `canvas`, `stage`, `ink`, `muted`, `line`, `accent`, and `code`, each as a hexadecimal color. The remaining optional tokens are:
+
+| Area | Tokens |
+| --- | --- |
+| Typography | `fontFamily`, `headingFontFamily`, `headingWeight` (`regular`, `medium`, `semibold`, `bold`), `headingLetterSpacing`, `headingCase`, `headingAccent` |
+| Layout and surfaces | `stageGutter`, `contentGutter`, `radius`, `shadow` (`none`, `subtle`, `strong`), `layout` (`default`, `compact`, `editorial`) |
+| Content | `tableHeader`, `tableStripe`, `codeBackground`, `quoteAccent`, `linkColor` |
+| Cover slide | `coverAlignment` (`start`, `center`, `end`), `coverBackground`, `coverInk` |
+| Mermaid | `mermaidNode`, `mermaidEdge`, `mermaidLabel` |
+| Repeated metadata | `footer` (a short, single-line label) |
+
+Font stacks accept a conventional comma-separated value. Length values accept one CSS length such as `2rem` or `24px`; all color values use hexadecimal notation. The tokens apply consistently to slides, controls, tables, code backgrounds, and Mermaid diagrams. A changed theme file triggers the same live reload as a changed deck file.
+Before a deck with raw HTML opens, md-present asks whether you trust it; use `--allow-raw-html` to opt in without the prompt.
+Remote media and local media outside the deck folder use a separate trust prompt; use `--allow-external-media` to opt in without that prompt.
 Use `md-present --no-open plan.md` to start without opening a browser.
 Press Ctrl+C in the terminal to stop the process.
+
+Use the **Edit** button next to the slide overview to open a local source
+editor. It contains only the current slide's Markdown and previews valid edits
+without writing the file. Save with Cmd/Ctrl+S to persist the change; **Cancel**
+restores the saved slide. Drag the panel's left edge to resize it. It works only
+for the deck file selected on the command line and rejects saves when that file
+changed outside the editor. It intentionally remains a plain textarea for now
+so the Markdown renderer stays the source of truth; a richer editor can replace
+this surface later without changing the save API. While editing, use the footer
+arrows to change slides; they ask before discarding unsaved changes.
+
+When a network connection is available, md-present also checks GitHub Releases in the background. If a newer version exists, it shows an update notice in the presentation and prints the Homebrew upgrade command to stderr; the check is optional and never blocks presenting offline.
 
 ### Hidden slides
 
@@ -87,10 +168,11 @@ overview, where it is labelled as hidden and can be selected for inspection.
 ---
 hidden: true
 ---
-# Appendix for review
+# Appendix slide
 
 ---
-
+hidden: false
+---
 # Closing slide
 ```
 
@@ -98,6 +180,39 @@ Right/left navigation, Home/End, slide clicks, and the initial URL route skip
 hidden slides. The overview still includes them so they can be reviewed without
 making them part of the normal presentation flow. Set `hidden: false` to make a
 slide explicit in generated Markdown, although visible is the default.
+
+### HTML and columns
+
+CommonMark raw HTML is supported for trusted decks. Keep blank lines between HTML container tags and Markdown content so CommonMark parses the inner content as Markdown.
+
+Use the built-in `columns` and `column` classes for equal-width columns:
+
+```md
+# Comparison
+
+<div class="columns">
+
+<div class="column">
+
+## Left
+
+- Standard Markdown
+- **Formatting** still works
+
+</div>
+
+<div class="column">
+
+## Right
+
+![Architecture](architecture.png)
+
+</div>
+
+</div>
+```
+
+Two or three columns work best on the 16:9 stage. Use Markdown image syntax inside HTML containers so local media remains embedded, watched for changes, and covered by the external-media trust check. Raw HTML runs under md-present's restrictive Content Security Policy, but it can still change presentation behavior or load external resources; trust only files you intend to present.
 
 ### Mermaid diagrams
 

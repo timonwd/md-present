@@ -61,6 +61,32 @@ func TestSplitSlidesIgnoresOnlyEmptyEdges(t *testing.T) {
 	}
 }
 
+func TestSlideSegmentsKeepFenceAwareSourceRanges(t *testing.T) {
+	source := "\n# One\n\n---\n\n```text\n---\n```\n\n---\n\n# Three\n"
+	segments := slideSegments(source)
+	if len(segments) != 3 {
+		t.Fatalf("slideSegments() returned %d segments, want 3", len(segments))
+	}
+	for index, want := range []string{"# One", "```text\n---\n```", "# Three"} {
+		if got := source[segments[index].start:segments[index].stop]; got != want {
+			t.Errorf("segment %d = %q, want %q", index+1, got, want)
+		}
+	}
+}
+
+func TestSlideSegmentsExcludeDocumentFrontMatter(t *testing.T) {
+	source := "---\ntheme: shared\n---\n# One\n\n---\n\n# Two\n"
+	segments := slideSegments(source)
+	if len(segments) != 2 {
+		t.Fatalf("slideSegments() returned %d segments, want 2", len(segments))
+	}
+	for index, want := range []string{"# One", "# Two"} {
+		if got := source[segments[index].start:segments[index].stop]; got != want {
+			t.Errorf("segment %d = %q, want %q", index+1, got, want)
+		}
+	}
+}
+
 func TestSlideFrontmatterHidesOnlyItsSlide(t *testing.T) {
 	source, err := os.ReadFile(filepath.Join("..", "..", "fixtures", "hidden-slides.md"))
 	if err != nil {
@@ -69,7 +95,7 @@ func TestSlideFrontmatterHidesOnlyItsSlide(t *testing.T) {
 
 	slides, err := renderPresentationSlidesWithWarnings(source, "", nil)
 	if err != nil {
-		t.Fatalf("renderPresentationSlidesWithWarnings() error: %v", err)
+		t.Fatal(err)
 	}
 	if len(slides) != 3 {
 		t.Fatalf("renderPresentationSlidesWithWarnings() returned %d slides, want 3", len(slides))
@@ -85,10 +111,21 @@ func TestSlideFrontmatterHidesOnlyItsSlide(t *testing.T) {
 }
 
 func TestSlideFrontmatterDoesNotInterpretFencedContent(t *testing.T) {
-	source := []byte("```yaml\n---\nhidden: true\n---\n```\n")
-	slides := splitSlides(string(source))
-	if len(slides) != 1 || !strings.Contains(slides[0], "hidden: true") {
-		t.Fatalf("splitSlides() = %#v, want the fenced frontmatter unchanged", slides)
+	source := "```yaml\n---\nhidden: true\n---\n```\n"
+	slides := parseSlides(source)
+	if len(slides) != 1 || !strings.Contains(slides[0].source, "hidden: true") || slides[0].hidden {
+		t.Fatalf("parseSlides() = %#v, want fenced frontmatter unchanged and visible", slides)
+	}
+}
+
+func TestSlideFrontmatterCanHideTheFirstSlide(t *testing.T) {
+	source := "---\nhidden: true\n---\n# Appendix\n"
+	slides, err := renderPresentationSlidesWithWarnings([]byte(source), "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(slides) != 1 || !slides[0].Hidden || string(slides[0].HTML) != "<h1>Appendix</h1>\n" {
+		t.Fatalf("renderPresentationSlidesWithWarnings() = %#v, want a single hidden appendix slide", slides)
 	}
 }
 
@@ -96,8 +133,6 @@ func TestRenderSlidesMarkdownAndSafety(t *testing.T) {
 	source := []byte(`# Title
 
 A [safe link](https://example.com), [unsafe link](javascript:alert(1)), and ![image](data:image/png;base64,AAAA).
-
-<script>alert("bad")</script>
 
 > Quote
 
@@ -120,10 +155,84 @@ fmt.Println("hello")
 			t.Errorf("rendered HTML does not contain %q:\n%s", expected, html)
 		}
 	}
-	for _, unsafe := range []string{"<script", "javascript:alert"} {
+	for _, unsafe := range []string{"javascript:alert"} {
 		if strings.Contains(strings.ToLower(html), unsafe) {
 			t.Errorf("rendered HTML contains unsafe value %q:\n%s", unsafe, html)
 		}
+	}
+}
+
+func TestRawHTMLPresent(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		source string
+		want   bool
+	}{
+		{name: "block", source: "<div>Layout</div>\n", want: true},
+		{name: "inline", source: "Text with <mark>HTML</mark>.\n", want: true},
+		{name: "comment", source: "<!-- presenter hint -->\n", want: true},
+		{name: "code", source: "```html\n<div>Example</div>\n```\n", want: false},
+		{name: "escaped", source: "\\<div>Literal\\</div>\n", want: false},
+		{name: "markdown", source: "# Plain Markdown\n", want: false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := rawHTMLPresent([]byte(test.source)); got != test.want {
+				t.Fatalf("rawHTMLPresent() = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestRenderSlidesRequiresTrustedRawHTML(t *testing.T) {
+	_, err := renderSlides([]byte("<div>Layout</div>\n"), "")
+	if err == nil || !strings.Contains(err.Error(), "--allow-raw-html") {
+		t.Fatalf("renderSlides() error = %v, want raw HTML trust error", err)
+	}
+}
+
+func TestRenderSlidesTrustedRawHTMLPreservesCommonMarkAndURLSafety(t *testing.T) {
+	source := []byte(`<div class="columns">
+
+<div class="column">
+
+## Left
+
+- **Nested Markdown**
+
+</div>
+
+<div class="column">
+
+Right with <mark data-note="trusted">inline HTML</mark>.
+
+</div>
+
+</div>
+
+[Unsafe Markdown link](javascript:alert(1))
+`)
+
+	slides, err := renderSlidesWithOptions(source, "", nil, renderOptions{allowRawHTML: true})
+	if err != nil {
+		t.Fatalf("renderSlidesWithOptions() error: %v", err)
+	}
+	html := string(slides[0])
+	for _, expected := range []string{
+		`<div class="columns">`,
+		`<div class="column">`,
+		`<h2>Left</h2>`,
+		`<strong>Nested Markdown</strong>`,
+		`<mark data-note="trusted">inline HTML</mark>`,
+	} {
+		if !strings.Contains(html, expected) {
+			t.Errorf("trusted raw HTML output does not contain %q:\n%s", expected, html)
+		}
+	}
+	if got := strings.Count(html, `<div class="column">`); got != 2 {
+		t.Errorf("trusted raw HTML rendered %d columns, want 2:\n%s", got, html)
+	}
+	if strings.Contains(strings.ToLower(html), "javascript:alert") {
+		t.Errorf("trusted raw HTML enabled an unsafe Markdown link:\n%s", html)
 	}
 }
 
@@ -195,6 +304,9 @@ func TestMermaidTypesFixtureHasBaselineAndErrorCases(t *testing.T) {
 
 	for _, expected := range []string{
 		"flowchart LR",
+		"A([Start]) --> B[Step 1]",
+		"B --> C[Step 2]",
+		"C --> D([End])",
 		"sequenceDiagram",
 		"classDiagram",
 		"stateDiagram-v2",
@@ -218,6 +330,34 @@ func TestMermaidTypesFixtureHasBaselineAndErrorCases(t *testing.T) {
 	}
 	if mermaidSlides != 10 {
 		t.Errorf("fixture has %d Mermaid slides, want 10", mermaidSlides)
+	}
+}
+
+func TestLayoutsFixtureUsesTrustedCommonMarkHTML(t *testing.T) {
+	fixturePath := filepath.Join("..", "..", "fixtures", "layouts.md")
+	source, err := os.ReadFile(fixturePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !rawHTMLPresent(source) {
+		t.Fatal("layouts fixture does not exercise raw HTML trust")
+	}
+
+	slides, err := renderSlidesWithOptions(source, filepath.Dir(fixturePath), nil, renderOptions{allowRawHTML: true})
+	if err != nil {
+		t.Fatalf("renderSlidesWithOptions() error: %v", err)
+	}
+	if len(slides) != 3 {
+		t.Fatalf("renderSlidesWithOptions() returned %d slides, want 3", len(slides))
+	}
+	if html := string(slides[0]); strings.Count(html, `class="column"`) != 2 || !strings.Contains(html, `src="data:image/png;base64,`) {
+		t.Fatalf("two-column fixture slide did not preserve columns and embedded media: %s", html)
+	}
+	if html := string(slides[1]); strings.Count(html, `class="column"`) != 3 {
+		t.Fatalf("three-column fixture slide did not preserve three columns: %s", html)
+	}
+	if html := string(slides[2]); !strings.Contains(html, "<mark>highlighted text</mark>") {
+		t.Fatalf("inline HTML fixture slide was not preserved: %s", html)
 	}
 }
 
@@ -292,7 +432,7 @@ func TestRenderSlidesWarnsAboutUnterminatedFencedCodeBlock(t *testing.T) {
 			if len(slides) != 1 {
 				t.Fatalf("renderSlidesWithWarnings() returned %d slides, want 1", len(slides))
 			}
-			want := "md-present: warning: unterminated fenced code block continues to the end of the document\n"
+			want := "Warning: unterminated fenced code block continues to the end of the document.\n"
 			if got := warnings.String(); got != want {
 				t.Fatalf("warnings = %q, want %q", got, want)
 			}
@@ -317,7 +457,7 @@ func TestUnterminatedFenceFixtureWarnsAndPreservesGoldmarkSemantics(t *testing.T
 	if !strings.Contains(string(slides[0]), "This is code, not a second slide") {
 		t.Fatal("unterminated fence fixture did not remain code")
 	}
-	if got := warnings.String(); got != "md-present: warning: unterminated fenced code block continues to the end of the document\n" {
+	if got := warnings.String(); got != "Warning: unterminated fenced code block continues to the end of the document.\n" {
 		t.Fatalf("warnings = %q", got)
 	}
 }
@@ -442,7 +582,7 @@ func TestRenderSlidesSkipsMissingRelativeImage(t *testing.T) {
 	if !strings.Contains(html, "Still rendered.") {
 		t.Fatalf("rendered HTML omitted remaining slide content: %s", html)
 	}
-	if warning := warnings.String(); !strings.Contains(warning, `md-present: warning: skip local media "missing.png"`) {
+	if warning := warnings.String(); !strings.Contains(warning, `Warning: skipped local media "missing.png"`) {
 		t.Fatalf("missing media warning = %q", warning)
 	}
 }

@@ -8,7 +8,9 @@ This fixture covers the stable diagram baseline and graceful error handling.
 
 ```mermaid
 flowchart LR
-    A[Write Markdown] --> B[Run md-present]
+    A([Start]) --> B[Step 1]
+    B --> C[Step 2]
+    C --> D([End])
 ```
 
 ---

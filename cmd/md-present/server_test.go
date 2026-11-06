@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"html/template"
 	"io"
 	"net"
@@ -21,9 +22,12 @@ func TestPresentationHandler(t *testing.T) {
 	presentation := newPresentationState([]template.HTML{`<h1>Expected slide</h1><pre><code class="language-mermaid">flowchart LR
 A --&gt; B
 </code></pre>`})
+	presentation.themeCSS = template.CSS(":root {--accent:#a03d2f;}")
+	presentation.themeFooter = "Acme · Internal"
 	handler := presentationHandler(presentation, tracker, io.Discard)
 
 	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request.Host = "127.0.0.1:38473"
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "Expected slide") {
@@ -35,11 +39,20 @@ A --&gt; B
 	if !strings.Contains(response.Body.String(), `class="overflow-warning"`) {
 		t.Fatal("GET / omitted overflow warning")
 	}
+	if !strings.Contains(response.Body.String(), `class="update-notice"`) {
+		t.Fatal("GET / omitted update notice")
+	}
 	if !strings.Contains(response.Body.String(), `class="overview-button"`) {
 		t.Fatal("GET / omitted overview control")
 	}
 	if !strings.Contains(response.Body.String(), `aria-keyshortcuts="O Escape"`) {
 		t.Fatal("GET / omitted keyboard shortcuts")
+	}
+	if !strings.Contains(response.Body.String(), `:root {--accent:#a03d2f;}`) {
+		t.Fatal("GET / omitted the configured theme CSS")
+	}
+	if !strings.Contains(response.Body.String(), `class="theme-footer">Acme · Internal`) {
+		t.Fatal("GET / omitted the configured theme footer")
 	}
 	csp := response.Header().Get("Content-Security-Policy")
 	if csp == "" {
@@ -59,6 +72,7 @@ A --&gt; B
 
 	for _, asset := range []string{"app.js", "style.css", "favicon.svg", "mermaid.min.js", "mermaid.LICENSE.txt"} {
 		assetRequest := httptest.NewRequest(http.MethodGet, "/assets/"+asset, nil)
+		assetRequest.Host = "127.0.0.1:38473"
 		assetResponse := httptest.NewRecorder()
 		handler.ServeHTTP(assetResponse, assetRequest)
 		if assetResponse.Code != http.StatusOK {
@@ -66,19 +80,19 @@ A --&gt; B
 		}
 		if asset == "app.js" {
 			body := assetResponse.Body.String()
-			for _, expected := range []string{"requestFullscreen", "exitFullscreen", `securityLevel: "strict"`, `role", "alert"`, "language-mermaid", "mermaidConfigurationDirective", "Mermaid configuration directives are not supported.", "overflowWarningDuration", "scrollBy", "toggleOverview", "closePresentationTab", "window.close()", `role", "grid"`, `role", "gridcell"`, "isMediaControl", "video, audio"} {
+			for _, expected := range []string{"requestFullscreen", "exitFullscreen", `securityLevel: "strict"`, "htmlLabels: false", `role", "alert"`, "language-mermaid", "mermaidConfigurationDirective", "Mermaid configuration directives are not supported.", "overflowWarningDuration", "checkForUpdate", "/api/update", "/api/source", "saveEditor", "toggleOverview", "closePresentationTab", "window.close()", `role", "grid"`, `role", "gridcell"`, "isMediaControl", "video, audio", "prepareVideoPoster", "captureFirstFrame", "video.currentTime", "canvas.toDataURL"} {
 				if !strings.Contains(body, expected) {
 					t.Errorf("GET /assets/app.js omitted %q", expected)
 				}
 			}
 		} else if asset == "style.css" {
 			body := assetResponse.Body.String()
-			for _, expected := range []string{"video:only-child", "max-width: 100%", "max-height: 62cqh", "--stage-gutter", "--content-gutter", "text-wrap: wrap"} {
+			for _, expected := range []string{"video:only-child", "max-width: 100%", "max-height: 62cqh", "--stage-gutter", "--content-gutter", "text-wrap: wrap", ".columns > .column", "grid-auto-flow: column", "@page { size: landscape; margin: 0; }", "width: 100%;\n    height: 100%;"} {
 				if !strings.Contains(body, expected) {
 					t.Errorf("GET /assets/style.css omitted %q", expected)
 				}
 			}
-			for _, unwanted := range []string{"max-width: 18ch", "max-width: 48ch", "text-wrap: balance"} {
+			for _, unwanted := range []string{"max-width: 18ch", "max-width: 48ch", "text-wrap: balance", "width: 100vw;\n    height: 100vh;"} {
 				if strings.Contains(body, unwanted) {
 					t.Errorf("GET /assets/style.css still constrains content with %q", unwanted)
 				}
@@ -93,10 +107,154 @@ A --&gt; B
 	}
 
 	missingRequest := httptest.NewRequest(http.MethodGet, "/source.md", nil)
+	missingRequest.Host = "127.0.0.1:38473"
 	missingResponse := httptest.NewRecorder()
 	handler.ServeHTTP(missingResponse, missingRequest)
 	if missingResponse.Code != http.StatusNotFound {
 		t.Fatalf("GET /source.md status = %d, want 404", missingResponse.Code)
+	}
+}
+
+func TestPresentationEditorReadsSavesAndDetectsConflicts(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "slides.md")
+	if err := os.WriteFile(path, []byte("# Before\n\n---\n\n# Untouched"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	presentation := newPresentationState([]template.HTML{"<h1>Before</h1>", "<h1>Untouched</h1>"})
+	handler := presentationHandlerWithOptions(presentation, newTabTracker(func() {}, time.Second), io.Discard, nil, renderOptions{markdownPath: path})
+
+	get := httptest.NewRequest(http.MethodGet, "/api/source?slide=1", nil)
+	get.Host = "127.0.0.1:38473"
+	getResponse := httptest.NewRecorder()
+	handler.ServeHTTP(getResponse, get)
+	if getResponse.Code != http.StatusOK {
+		t.Fatalf("GET /api/source status = %d, body %s", getResponse.Code, getResponse.Body.String())
+	}
+	var source editorSourceResponse
+	if err := json.NewDecoder(getResponse.Body).Decode(&source); err != nil {
+		t.Fatal(err)
+	}
+	if source.Source != "# Before" || source.Revision == "" || source.Slide != 1 || source.Slides != 2 {
+		t.Fatalf("GET /api/source = %#v", source)
+	}
+
+	preview := httptest.NewRequest(http.MethodPost, "/api/source/preview", strings.NewReader(`{"source":"# Preview","revision":"`+source.Revision+`","slide":1}`))
+	preview.Host = "127.0.0.1:38473"
+	preview.Header.Set("Origin", "http://127.0.0.1:38473")
+	preview.Header.Set("Content-Type", "application/json")
+	previewResponse := httptest.NewRecorder()
+	handler.ServeHTTP(previewResponse, preview)
+	if previewResponse.Code != http.StatusOK {
+		t.Fatalf("POST /api/source/preview status = %d, body %s", previewResponse.Code, previewResponse.Body.String())
+	}
+	var previewed editorSaveResponse
+	if err := json.NewDecoder(previewResponse.Body).Decode(&previewed); err != nil {
+		t.Fatal(err)
+	}
+	if previewed.DeckRevision != 1 || !strings.Contains(previewed.HTML, "Preview") {
+		t.Fatalf("POST /api/source/preview response = %#v", previewed)
+	}
+	if got, err := os.ReadFile(path); err != nil || !strings.Contains(string(got), "# Before") {
+		t.Fatalf("preview changed source = %q, %v", got, err)
+	}
+
+	saveBody := `{"source":"# After","revision":"` + source.Revision + `","slide":1}`
+	save := httptest.NewRequest(http.MethodPut, "/api/source", strings.NewReader(saveBody))
+	save.Host = "127.0.0.1:38473"
+	save.Header.Set("Origin", "http://127.0.0.1:38473")
+	save.Header.Set("Content-Type", "application/json")
+	saveResponse := httptest.NewRecorder()
+	handler.ServeHTTP(saveResponse, save)
+	if saveResponse.Code != http.StatusOK {
+		t.Fatalf("PUT /api/source status = %d, body %s", saveResponse.Code, saveResponse.Body.String())
+	}
+	var saved editorSaveResponse
+	if err := json.NewDecoder(saveResponse.Body).Decode(&saved); err != nil {
+		t.Fatal(err)
+	}
+	if saved.Revision == "" || saved.DeckRevision != 2 || !strings.Contains(saved.HTML, "After") {
+		t.Fatalf("PUT /api/source response = %#v", saved)
+	}
+	if got, err := os.ReadFile(path); err != nil || string(got) != "# After\n\n---\n\n# Untouched" {
+		t.Fatalf("saved source = %q, %v", got, err)
+	}
+	if info, err := os.Stat(path); err != nil || info.Mode().Perm() != 0o640 {
+		t.Fatalf("saved source mode = %v, %v", info.Mode(), err)
+	}
+	if slides, revision := presentation.snapshot(); revision != 2 || !strings.Contains(string(slides[0]), "After") || !strings.Contains(string(slides[1]), "Untouched") {
+		t.Fatalf("saved presentation = (%q, %d)", slides, revision)
+	}
+
+	conflict := httptest.NewRequest(http.MethodPut, "/api/source", strings.NewReader(saveBody))
+	conflict.Host = "127.0.0.1:38473"
+	conflict.Header.Set("Origin", "http://127.0.0.1:38473")
+	conflict.Header.Set("Content-Type", "application/json")
+	conflictResponse := httptest.NewRecorder()
+	handler.ServeHTTP(conflictResponse, conflict)
+	if conflictResponse.Code != http.StatusConflict {
+		t.Fatalf("stale PUT /api/source status = %d, want %d", conflictResponse.Code, http.StatusConflict)
+	}
+}
+
+func TestPresentationEditorRejectsInvalidOrCrossOriginSave(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "slides.md")
+	if err := os.WriteFile(path, []byte("# Before"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	presentation := newPresentationState([]template.HTML{"<h1>Before</h1>"})
+	handler := presentationHandlerWithOptions(presentation, newTabTracker(func() {}, time.Second), io.Discard, nil, renderOptions{markdownPath: path})
+	revision := sourceRevision([]byte("# Before"))
+
+	for _, test := range []struct {
+		name, origin, body string
+		want               int
+	}{
+		{name: "cross origin", origin: "https://example.com", body: `{"source":"# After","revision":"` + revision + `","slide":1}`, want: http.StatusForbidden},
+		{name: "invalid deck", origin: "http://127.0.0.1:38473", body: `{"source":"---","revision":"` + revision + `","slide":1}`, want: http.StatusUnprocessableEntity},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPut, "/api/source", strings.NewReader(test.body))
+			request.Host = "127.0.0.1:38473"
+			request.Header.Set("Origin", test.origin)
+			request.Header.Set("Content-Type", "application/json")
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code != test.want {
+				t.Fatalf("PUT /api/source status = %d, want %d", response.Code, test.want)
+			}
+		})
+	}
+	if got, err := os.ReadFile(path); err != nil || string(got) != "# Before" {
+		t.Fatalf("invalid save changed source = %q, %v", got, err)
+	}
+}
+
+func TestPresentationHandlerReportsAvailableUpdate(t *testing.T) {
+	updates := newUpdateState()
+	updates.set("0.2.8")
+	handler := presentationHandlerWithUpdate(
+		newPresentationState([]template.HTML{"<h1>One</h1>"}),
+		newTabTracker(func() {}, time.Second),
+		io.Discard,
+		updates,
+	)
+
+	request := httptest.NewRequest(http.MethodGet, "/api/update", nil)
+	request.Host = "127.0.0.1:38473"
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if got, want := response.Code, http.StatusOK; got != want {
+		t.Fatalf("GET /api/update status = %d, want %d", got, want)
+	}
+	var status updateStatus
+	if err := json.NewDecoder(response.Body).Decode(&status); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := status, (updateStatus{Available: true, Version: "0.2.8"}); got != want {
+		t.Fatalf("update status = %#v, want %#v", got, want)
 	}
 }
 
@@ -105,6 +263,7 @@ func TestPresentationHandlerUsesExplicitTitle(t *testing.T) {
 	handler := presentationHandler(presentation, newTabTracker(func() {}, time.Second), io.Discard, `Quarterly <Review>`)
 
 	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request.Host = "127.0.0.1:38473"
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 
@@ -129,13 +288,18 @@ func TestPresentationHandlerMarksHiddenSlidesForOverview(t *testing.T) {
 	})
 	handler := presentationHandler(presentation, newTabTracker(func() {}, time.Second), io.Discard)
 	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/", nil))
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request.Host = "127.0.0.1:38473"
+	handler.ServeHTTP(response, request)
 
 	body := response.Body.String()
 	for _, expected := range []string{`id="slide-2"`, `data-hidden="true"`, "Hidden from presentation"} {
 		if !strings.Contains(body, expected) {
 			t.Errorf("GET / omitted hidden-slide overview marker %q", expected)
 		}
+	}
+	if !strings.Contains(body, `id="current">1</span><span class="progress__rule"></span><span>1</span>`) {
+		t.Fatal("GET / did not count only visible slides in the progress indicator")
 	}
 }
 
@@ -151,7 +315,8 @@ func TestPresentationHandlerReportsOverflow(t *testing.T) {
 	for _, body := range bodies {
 		request := httptest.NewRequest(http.MethodPost, "/api/overflow", strings.NewReader(body))
 		request.Header.Set("Content-Type", "application/json")
-		request.Header.Set("Origin", "http://example.com")
+		request.Host = "127.0.0.1:38473"
+		request.Header.Set("Origin", "http://127.0.0.1:38473")
 		response := httptest.NewRecorder()
 		handler.ServeHTTP(response, request)
 		if response.Code != http.StatusNoContent {
@@ -159,7 +324,7 @@ func TestPresentationHandlerReportsOverflow(t *testing.T) {
 		}
 	}
 
-	want := "md-present: warning: slide 2 exceeds the regular 16:9 slide area at 1280x720; scroll to view all content\n"
+	want := "Warning: slide 2 exceeds the regular 16:9 slide area at 1280x720; scroll to view all content.\n"
 	if got := diagnostics.String(); got != want {
 		t.Fatalf("overflow diagnostics = %q, want %q", got, want)
 	}
@@ -170,12 +335,26 @@ func TestPresentationHandlerRejectsInvalidOverflowReport(t *testing.T) {
 	handler := presentationHandler(presentation, newTabTracker(func() {}, time.Second), io.Discard)
 	request := httptest.NewRequest(http.MethodPost, "/api/overflow", strings.NewReader(`{"revision":1,"slides":[1],"stageWidth":1280,"stageHeight":720}`))
 	request.Header.Set("Content-Type", "application/json")
+	request.Host = "127.0.0.1:38473"
 	request.Header.Set("Origin", "https://example.com")
 	response := httptest.NewRecorder()
 
 	handler.ServeHTTP(response, request)
 	if response.Code != http.StatusForbidden {
 		t.Fatalf("cross-origin POST /api/overflow status = %d, want %d", response.Code, http.StatusForbidden)
+	}
+}
+
+func TestPresentationHandlerRejectsForeignHost(t *testing.T) {
+	presentation := newPresentationState([]template.HTML{"<h1>One</h1>"})
+	handler := presentationHandler(presentation, newTabTracker(func() {}, time.Second), io.Discard)
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request.Host = "attacker.example:38473"
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("foreign Host GET / status = %d, want %d", response.Code, http.StatusForbidden)
 	}
 }
 
@@ -239,6 +418,43 @@ func TestPresentationServerCancelsSessionStreamDuringShutdown(t *testing.T) {
 	<-serverErrors
 }
 
+func TestStartPresentationServesAndStopsWithParentContext(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "slides.md")
+	if err := os.WriteFile(path, []byte("# Expected slide"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	slides, err := renderSlides([]byte("# Expected slide"), directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	var stdout bytes.Buffer
+	presentation, err := startPresentation(ctx, path, slides, renderOptions{}, false, &stdout, io.Discard)
+	if err != nil {
+		t.Fatalf("startPresentation() error: %v", err)
+	}
+	response, err := http.Get(presentation.url)
+	if err != nil {
+		t.Fatalf("GET presentation: %v", err)
+	}
+	body, err := io.ReadAll(response.Body)
+	_ = response.Body.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode != http.StatusOK || !strings.Contains(string(body), "Expected slide") {
+		t.Fatalf("GET presentation status %d, body:\n%s", response.StatusCode, body)
+	}
+	if stdout.String() != presentation.url+"\n" {
+		t.Fatalf("presentation stdout = %q, want %q", stdout.String(), presentation.url+"\n")
+	}
+	cancel()
+	if err := presentation.wait(); err != nil {
+		t.Fatalf("presentation shutdown: %v", err)
+	}
+}
+
 func TestPresentationStatePublishesUpdates(t *testing.T) {
 	presentation := newPresentationState([]template.HTML{"<h1>Before</h1>"})
 	updates, revision, unsubscribe := presentation.subscribe()
@@ -276,7 +492,7 @@ func TestRefreshPresentationKeepsLastValidRender(t *testing.T) {
 		t.Fatalf("refreshPresentation() error: %v", err)
 	}
 	slides, revision := presentation.snapshot()
-	if revision != 2 || !strings.Contains(string(slides[0].HTML), "After") {
+	if revision != 2 || !strings.Contains(string(slides[0]), "After") {
 		t.Fatalf("updated presentation = (%#v, %d)", slides, revision)
 	}
 
@@ -287,8 +503,34 @@ func TestRefreshPresentationKeepsLastValidRender(t *testing.T) {
 		t.Fatal("refreshPresentation() accepted an empty deck")
 	}
 	slides, revision = presentation.snapshot()
-	if revision != 2 || !strings.Contains(string(slides[0].HTML), "After") {
+	if revision != 2 || !strings.Contains(string(slides[0]), "After") {
 		t.Fatalf("invalid refresh replaced presentation = (%#v, %d)", slides, revision)
+	}
+}
+
+func TestRefreshPresentationRequiresSameRawHTMLTrust(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "slides.md")
+	if err := os.WriteFile(path, []byte("# Before"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	presentation := newPresentationState([]template.HTML{"<h1>Before</h1>\n"})
+	if err := os.WriteFile(path, []byte(`<div class="columns">Trusted layout</div>`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := refreshPresentation(path, presentation); err == nil || !strings.Contains(err.Error(), "--allow-raw-html") {
+		t.Fatalf("refreshPresentation() error = %v, want raw HTML trust error", err)
+	}
+	if slides, revision := presentation.snapshot(); revision != 1 || !strings.Contains(string(slides[0]), "Before") {
+		t.Fatalf("untrusted raw HTML replaced presentation = (%q, %d)", slides, revision)
+	}
+
+	if err := refreshPresentationWithOptions(path, presentation, nil, renderOptions{allowRawHTML: true}); err != nil {
+		t.Fatalf("trusted refresh error: %v", err)
+	}
+	if slides, revision := presentation.snapshot(); revision != 2 || !strings.Contains(string(slides[0]), `class="columns"`) {
+		t.Fatalf("trusted raw HTML refresh = (%q, %d)", slides, revision)
 	}
 }
 
@@ -315,7 +557,7 @@ func TestRefreshPresentationDetectsLocalImageChanges(t *testing.T) {
 		t.Fatalf("refreshPresentation() error: %v", err)
 	}
 	slides, revision := presentation.snapshot()
-	if revision != 2 || len(slides) != 1 || slides[0].HTML == initial[0] {
+	if revision != 2 || len(slides) != 1 || slides[0] == initial[0] {
 		t.Fatalf("image refresh presentation = (%#v, %d)", slides, revision)
 	}
 }
